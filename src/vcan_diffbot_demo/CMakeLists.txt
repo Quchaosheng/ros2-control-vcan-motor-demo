@@ -15,9 +15,30 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(ros2_socketcan REQUIRED)
 
+add_library(vcan_diffbot_hardware SHARED src/can_motor_hardware.cpp)
+target_include_directories(vcan_diffbot_hardware PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(vcan_diffbot_hardware
+  hardware_interface
+  pluginlib
+  rclcpp
+  rclcpp_lifecycle
+  ros2_socketcan
+)
+
+pluginlib_export_plugin_description_file(hardware_interface vcan_diffbot_demo.xml)
+
 install(DIRECTORY config launch urdf DESTINATION share/${PROJECT_NAME} OPTIONAL)
-install(FILES vcan_diffbot_demo.xml DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY include/ DESTINATION include)
 install(PROGRAMS scripts/setup_vcan.sh DESTINATION lib/${PROJECT_NAME})
+install(TARGETS vcan_diffbot_hardware
+  EXPORT export_vcan_diffbot_hardware
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
@@ -31,6 +52,11 @@ if(BUILD_TESTING)
   target_include_directories(test_motor_state PRIVATE include)
 
   ament_add_pytest_test(test_urdf_xacro test/test_urdf_xacro.py)
+
+  ament_add_gtest(test_hardware_plugin test/test_hardware_plugin.cpp)
+  ament_target_dependencies(test_hardware_plugin hardware_interface pluginlib)
 endif()
 
+ament_export_targets(export_vcan_diffbot_hardware HAS_LIBRARY_TARGET)
+ament_export_dependencies(hardware_interface pluginlib rclcpp rclcpp_lifecycle ros2_socketcan)
 ament_package()
