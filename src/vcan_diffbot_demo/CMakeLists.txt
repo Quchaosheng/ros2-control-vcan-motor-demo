@@ -25,6 +25,9 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_can_protocol test/test_can_protocol.cpp)
   target_include_directories(test_can_protocol PRIVATE include)
+
+  ament_add_gtest(test_motor_state test/test_motor_state.cpp)
+  target_include_directories(test_motor_state PRIVATE include)
 endif()
 
 ament_package()
