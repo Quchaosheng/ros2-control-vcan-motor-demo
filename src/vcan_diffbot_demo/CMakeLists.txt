@@ -16,6 +16,7 @@ find_package(rclcpp_lifecycle REQUIRED)
 find_package(ros2_socketcan REQUIRED)
 
 install(DIRECTORY config launch urdf DESTINATION share/${PROJECT_NAME} OPTIONAL)
+install(FILES vcan_diffbot_demo.xml DESTINATION share/${PROJECT_NAME})
 install(PROGRAMS scripts/setup_vcan.sh DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
@@ -28,6 +29,8 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_motor_state test/test_motor_state.cpp)
   target_include_directories(test_motor_state PRIVATE include)
+
+  ament_add_pytest_test(test_urdf_xacro test/test_urdf_xacro.py)
 endif()
 
 ament_package()
