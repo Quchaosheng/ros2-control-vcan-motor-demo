@@ -22,6 +22,9 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   find_package(ament_cmake_pytest REQUIRED)
   find_package(launch_testing_ament_cmake REQUIRED)
+
+  ament_add_gtest(test_can_protocol test/test_can_protocol.cpp)
+  target_include_directories(test_can_protocol PRIVATE include)
 endif()
 
 ament_package()
