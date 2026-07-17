@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="vcan_diffbot_ros2_control" params="name can_interface">
+    <ros2_control name="${name}" type="system">
+      <hardware>
+        <plugin>vcan_diffbot_demo/CanMotorHardware</plugin>
+        <param name="can_interface">${can_interface}</param>
+        <param name="left_node_id">1</param>
+        <param name="right_node_id">2</param>
+        <param name="encoder_counts_per_revolution">4096</param>
+        <param name="command_watchdog_ms">200</param>
+        <param name="feedback_timeout_ms">500</param>
+      </hardware>
+
+      <joint name="left_wheel_joint">
+        <command_interface name="velocity"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="right_wheel_joint">
+        <command_interface name="velocity"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+    </ros2_control>
+  </xacro:macro>
+</robot>

@@ -1,0 +1,8 @@
+<library path="vcan_diffbot_hardware">
+  <class
+    name="vcan_diffbot_demo/CanMotorHardware"
+    type="vcan_diffbot_demo::CanMotorHardware"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>DiffBot ros2_control hardware transported over SocketCAN.</description>
+  </class>
+</library>
