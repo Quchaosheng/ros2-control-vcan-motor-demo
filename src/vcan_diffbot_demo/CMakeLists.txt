@@ -28,6 +28,10 @@ ament_target_dependencies(vcan_diffbot_hardware
   ros2_socketcan
 )
 
+add_executable(virtual_motor_node src/virtual_motor_node.cpp)
+target_include_directories(virtual_motor_node PRIVATE include)
+ament_target_dependencies(virtual_motor_node rclcpp ros2_socketcan)
+
 pluginlib_export_plugin_description_file(hardware_interface vcan_diffbot_demo.xml)
 
 install(DIRECTORY config launch urdf DESTINATION share/${PROJECT_NAME} OPTIONAL)
@@ -39,6 +43,7 @@ install(TARGETS vcan_diffbot_hardware
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
 )
+install(TARGETS virtual_motor_node DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
@@ -55,6 +60,8 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_hardware_plugin test/test_hardware_plugin.cpp)
   ament_target_dependencies(test_hardware_plugin hardware_interface pluginlib)
+
+  add_launch_test(test/test_virtual_motor_node.py TIMEOUT 60)
 endif()
 
 ament_export_targets(export_vcan_diffbot_hardware HAS_LIBRARY_TARGET)
