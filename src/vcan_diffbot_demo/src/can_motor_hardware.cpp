@@ -16,6 +16,7 @@
 #include "pluginlib/class_list_macros.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "ros2_socketcan/socket_can_id.hpp"
+#include "vcan_diffbot_demo/can_error_policy.hpp"
 #include "vcan_diffbot_demo/can_filters.hpp"
 #include "vcan_diffbot_demo/can_protocol.hpp"
 
@@ -150,6 +151,8 @@ hardware_interface::CallbackReturn CanMotorHardware::on_activate(
     receiver_->SetCanFilters(hardware_can_filters(node_ids_));
     const auto now = std::chrono::steady_clock::now();
     health_.reset(now);
+    last_can_error_.clear();
+    stop_reason_.clear();
     if (!send_safe_stop()) {
       throw std::runtime_error("failed to send activation safe stop");
     }
@@ -194,8 +197,25 @@ hardware_interface::return_type CanMotorHardware::read(
       }
 
       if (can_id.frame_type() == drivers::socketcan::FrameType::ERROR) {
-        RCLCPP_WARN(logger_, "Received SocketCAN error frame 0x%03x", can_id.identifier());
-        continue;
+        const uint32_t error_mask = can_id.identifier() & CAN_ERR_MASK;
+        const auto severity = classify_can_error(error_mask);
+        if (severity == CanErrorSeverity::NONE) {
+          continue;
+        }
+
+        last_can_error_ = describe_can_error(error_mask);
+        if (severity == CanErrorSeverity::WARNING) {
+          RCLCPP_WARN(logger_, "SocketCAN warning: %s", last_can_error_.c_str());
+          continue;
+        }
+
+        stop_reason_ = (error_mask & CAN_ERR_BUSOFF) != 0U ?
+          "can_bus_off" : "can_tx_timeout";
+        RCLCPP_ERROR(logger_, "Fatal SocketCAN error: %s", last_can_error_.c_str());
+        if (!health_.stop_sent() && send_safe_stop()) {
+          health_.mark_stop_sent();
+        }
+        return hardware_interface::return_type::ERROR;
       }
       if (can_id.frame_type() != drivers::socketcan::FrameType::DATA) {
         continue;
