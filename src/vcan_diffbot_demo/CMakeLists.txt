@@ -77,6 +77,7 @@ if(BUILD_TESTING)
   add_launch_test(test/test_demo_launch.py TIMEOUT 90)
   add_launch_test(test/test_feedback_timeout_launch.py TIMEOUT 60)
   add_launch_test(test/test_ack_timeout_launch.py TIMEOUT 60)
+  add_launch_test(test/test_invalid_fault_selector_launch.py TIMEOUT 30)
 endif()
 
 ament_export_targets(export_vcan_diffbot_hardware HAS_LIBRARY_TARGET)
