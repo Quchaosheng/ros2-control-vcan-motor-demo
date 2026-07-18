@@ -62,6 +62,7 @@ if(BUILD_TESTING)
   ament_target_dependencies(test_hardware_plugin hardware_interface pluginlib)
 
   add_launch_test(test/test_virtual_motor_node.py TIMEOUT 60)
+  add_launch_test(test/test_demo_launch.py TIMEOUT 90)
 endif()
 
 ament_export_targets(export_vcan_diffbot_hardware HAS_LIBRARY_TARGET)
