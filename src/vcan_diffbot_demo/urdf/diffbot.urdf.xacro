@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="vcan_diffbot">
+  <xacro:arg name="can_interface" default="vcan0"/>
+  <xacro:property name="wheel_radius" value="0.10"/>
+  <xacro:property name="wheel_width" value="0.05"/>
+  <xacro:property name="wheel_separation" value="0.40"/>
+
+  <xacro:include filename="$(find vcan_diffbot_demo)/urdf/diffbot.ros2_control.xacro"/>
+
+  <material name="body_blue">
+    <color rgba="0.10 0.35 0.75 1.0"/>
+  </material>
+  <material name="wheel_dark">
+    <color rgba="0.08 0.08 0.08 1.0"/>
+  </material>
+
+  <link name="base_footprint"/>
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0.12"/>
+      <geometry><box size="0.45 0.32 0.12"/></geometry>
+      <material name="body_blue"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.12"/>
+      <geometry><box size="0.45 0.32 0.12"/></geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 0.12"/>
+      <mass value="8.0"/>
+      <inertia ixx="0.080" ixy="0" ixz="0" iyy="0.140" iyz="0" izz="0.180"/>
+    </inertial>
+  </link>
+
+  <xacro:macro name="wheel" params="side sign">
+    <link name="${side}_wheel_link">
+      <visual>
+        <origin rpy="1.57079632679 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+        <material name="wheel_dark"/>
+      </visual>
+      <collision>
+        <origin rpy="1.57079632679 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+      </collision>
+      <inertial>
+        <mass value="0.7"/>
+        <inertia ixx="0.002" ixy="0" ixz="0" iyy="0.004" iyz="0" izz="0.002"/>
+      </inertial>
+    </link>
+    <joint name="${side}_wheel_joint" type="continuous">
+      <origin xyz="0 ${sign * wheel_separation / 2.0} ${wheel_radius}"/>
+      <parent link="base_link"/>
+      <child link="${side}_wheel_link"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:wheel side="left" sign="1"/>
+  <xacro:wheel side="right" sign="-1"/>
+
+  <link name="caster_link">
+    <visual>
+      <geometry><sphere radius="0.035"/></geometry>
+      <material name="wheel_dark"/>
+    </visual>
+    <collision><geometry><sphere radius="0.035"/></geometry></collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.00005" ixy="0" ixz="0" iyy="0.00005" iyz="0" izz="0.00005"/>
+    </inertial>
+  </link>
+  <joint name="caster_joint" type="fixed">
+    <origin xyz="-0.16 0 0.035"/>
+    <parent link="base_link"/>
+    <child link="caster_link"/>
+  </joint>
+
+  <xacro:vcan_diffbot_ros2_control
+    name="VcanDiffBot"
+    can_interface="$(arg can_interface)"/>
+</robot>
