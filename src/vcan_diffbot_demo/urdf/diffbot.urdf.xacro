@@ -1,6 +1,11 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="vcan_diffbot">
   <xacro:arg name="can_interface" default="vcan0"/>
+  <xacro:arg name="left_node_id" default="1"/>
+  <xacro:arg name="right_node_id" default="2"/>
+  <xacro:arg name="encoder_counts_per_revolution" default="4096"/>
+  <xacro:arg name="command_watchdog_ms" default="200"/>
+  <xacro:arg name="feedback_timeout_ms" default="500"/>
   <xacro:property name="wheel_radius" value="0.10"/>
   <xacro:property name="wheel_width" value="0.05"/>
   <xacro:property name="wheel_separation" value="0.40"/>
@@ -83,5 +88,10 @@
 
   <xacro:vcan_diffbot_ros2_control
     name="VcanDiffBot"
-    can_interface="$(arg can_interface)"/>
+    can_interface="$(arg can_interface)"
+    left_node_id="$(arg left_node_id)"
+    right_node_id="$(arg right_node_id)"
+    encoder_counts_per_revolution="$(arg encoder_counts_per_revolution)"
+    command_watchdog_ms="$(arg command_watchdog_ms)"
+    feedback_timeout_ms="$(arg feedback_timeout_ms)"/>
 </robot>
