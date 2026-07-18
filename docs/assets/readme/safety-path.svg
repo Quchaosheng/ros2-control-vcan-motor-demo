@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="720" viewBox="0 0 1440 720" role="img" aria-labelledby="title desc">
+  <title id="title">Fault injection and safe-stop paths</title>
+  <desc id="desc">Command and feedback faults are detected by ACK tracking, feedback freshness checks, and the virtual motor watchdog before the demo sends disabled zero commands and stops safely.</desc>
+  <defs>
+    <style>
+      .sans { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+      .ink { fill: #222b2e; }
+      .muted { fill: #697477; }
+      .teal { fill: #197c7a; }
+      .coral { fill: #d65f4a; }
+      .box { fill: #faf9f5; stroke: #aeb7b4; stroke-width: 2; }
+    </style>
+    <marker id="arrow-teal" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L10 5L0 10Z" fill="#197c7a"/>
+    </marker>
+    <marker id="arrow-coral" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L10 5L0 10Z" fill="#d65f4a"/>
+    </marker>
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="#d9ddd8" stroke-width="1" opacity="0.46"/>
+    </pattern>
+  </defs>
+
+  <rect width="1440" height="720" fill="#f5f3ee"/>
+  <rect x="0" y="0" width="440" height="720" fill="url(#grid)"/>
+  <text x="60" y="66" class="sans coral" font-size="16" font-weight="750" letter-spacing="2">FAULT LAB / SAFE-STOP MAP</text>
+  <text x="60" y="116" class="sans ink" font-size="42" font-weight="760">Break the signal. Watch the system stop.</text>
+  <text x="60" y="151" class="sans muted" font-size="20">Faults are off by default and use deterministic every-N settings.</text>
+  <path d="M60 180H1380" fill="none" stroke="#c9ceca" stroke-width="2"/>
+
+  <!-- Normal path -->
+  <rect x="60" y="210" width="1320" height="76" rx="4" fill="#e5efeb" stroke="#8fbfbd" stroke-width="2"/>
+  <circle cx="92" cy="248" r="8" fill="#197c7a"/>
+  <text x="116" y="242" class="sans teal" font-size="14" font-weight="750" letter-spacing="1.6">NORMAL CONTROL</text>
+  <text x="116" y="266" class="sans ink" font-size="18" font-weight="650">Fresh command → matching ACK → fresh encoder feedback → closed loop continues</text>
+  <path d="M896 248H1338" fill="none" stroke="#197c7a" stroke-width="4" marker-end="url(#arrow-teal)"/>
+
+  <!-- Column labels -->
+  <text x="60" y="332" class="sans muted" font-size="13" font-weight="750" letter-spacing="1.6">INJECT</text>
+  <text x="506" y="332" class="sans muted" font-size="13" font-weight="750" letter-spacing="1.6">DETECT</text>
+  <text x="980" y="332" class="sans muted" font-size="13" font-weight="750" letter-spacing="1.6">PROTECT</text>
+
+  <!-- Fault sources -->
+  <g class="sans">
+    <rect x="60" y="354" width="388" height="76" rx="4" class="box"/>
+    <rect x="60" y="446" width="388" height="76" rx="4" class="box"/>
+    <rect x="60" y="538" width="388" height="76" rx="4" class="box"/>
+    <rect x="72" y="366" width="6" height="52" fill="#d65f4a"/>
+    <rect x="72" y="458" width="6" height="52" fill="#d65f4a"/>
+    <rect x="72" y="550" width="6" height="52" fill="#d65f4a"/>
+    <text x="98" y="384" class="coral" font-size="13" font-weight="750" letter-spacing="1.2">COMMAND PATH</text>
+    <text x="98" y="411" class="ink" font-size="19" font-weight="700">command loss</text>
+    <text x="98" y="476" class="coral" font-size="13" font-weight="750" letter-spacing="1.2">FEEDBACK PATH</text>
+    <text x="98" y="503" class="ink" font-size="19" font-weight="700">feedback loss · excessive delay</text>
+    <text x="98" y="568" class="coral" font-size="13" font-weight="750" letter-spacing="1.2">FRAME QUALITY</text>
+    <text x="98" y="595" class="ink" font-size="19" font-weight="700">malformed DLC 7 · CAN error frame</text>
+  </g>
+
+  <!-- Detection -->
+  <g class="sans">
+    <rect x="506" y="354" width="394" height="76" rx="4" class="box"/>
+    <rect x="506" y="446" width="394" height="76" rx="4" class="box"/>
+    <rect x="506" y="538" width="394" height="76" rx="4" class="box"/>
+    <text x="530" y="382" class="ink" font-size="19" font-weight="730">ACK timeout</text>
+    <text x="876" y="382" class="coral" font-size="17" font-weight="760" text-anchor="end">200 ms</text>
+    <text x="530" y="408" class="muted" font-size="15">pending sequence never confirmed</text>
+    <text x="530" y="474" class="ink" font-size="19" font-weight="730">Feedback timeout</text>
+    <text x="876" y="474" class="coral" font-size="17" font-weight="760" text-anchor="end">500 ms</text>
+    <text x="530" y="500" class="muted" font-size="15">either motor stops reporting fresh state</text>
+    <text x="530" y="566" class="ink" font-size="19" font-weight="730">Frame validation</text>
+    <text x="876" y="566" class="coral" font-size="17" font-weight="760" text-anchor="end">REJECT</text>
+    <text x="530" y="592" class="muted" font-size="13">bad DLC ignored · error warned · no stop by itself</text>
+
+    <rect x="506" y="630" width="394" height="38" rx="4" fill="#f4ded8" stroke="#d65f4a" stroke-width="2"/>
+    <text x="530" y="655" class="coral" font-size="14" font-weight="760" letter-spacing="1.1">MOTOR WATCHDOG · 200 ms</text>
+  </g>
+
+  <!-- Action -->
+  <g class="sans">
+    <rect x="980" y="354" width="400" height="168" rx="4" fill="#222b2e"/>
+    <text x="1008" y="388" fill="#ef9b8d" font-size="13" font-weight="750" letter-spacing="1.5">HARDWARE SAFE-STOP</text>
+    <text x="1008" y="431" fill="#f5f3ee" font-size="25" font-weight="760">Disabled zero commands</text>
+    <text x="1008" y="460" fill="#c9ceca" font-size="16">sent to both motor nodes</text>
+    <path d="M1008 482H1350" stroke="#526064" stroke-width="2"/>
+    <text x="1008" y="508" fill="#c9ceca" font-size="15">enabled = 0 · velocity = 0</text>
+
+    <rect x="980" y="538" width="400" height="76" rx="4" fill="#d65f4a"/>
+    <text x="1008" y="569" fill="#fffaf7" font-size="13" font-weight="750" letter-spacing="1.5">FINAL STATE</text>
+    <text x="1350" y="594" fill="#fffaf7" font-size="25" font-weight="780" text-anchor="end">SAFE STOP</text>
+  </g>
+
+  <!-- Fault routing -->
+  <path d="M448 392H506M448 484H506M448 576H474V484H506" fill="none" stroke="#d65f4a" stroke-width="3" marker-end="url(#arrow-coral)"/>
+  <path d="M448 392V649H506" fill="none" stroke="#d65f4a" stroke-width="2.5" stroke-dasharray="7 6" marker-end="url(#arrow-coral)"/>
+  <path d="M703 538V522" fill="none" stroke="#d65f4a" stroke-width="2.5" stroke-dasharray="7 6" marker-end="url(#arrow-coral)"/>
+  <path d="M900 392H946V438H980M900 484H980M900 649H940V576H980" fill="none" stroke="#d65f4a" stroke-width="3" marker-end="url(#arrow-coral)"/>
+  <path d="M1180 522V538" fill="none" stroke="#d65f4a" stroke-width="4" marker-end="url(#arrow-coral)"/>
+
+  <text x="60" y="700" class="sans muted" font-size="15">Loss, delay, malformed frames, and SocketCAN error frames are configured with deterministic every-N launch arguments.</text>
+  <text x="1380" y="700" class="sans muted" font-size="14" font-weight="700" letter-spacing="1.2" text-anchor="end">FAULTS OFF BY DEFAULT</text>
+</svg>
