@@ -33,11 +33,13 @@ inline drivers::socketcan::SocketCanReceiver::CanFilterList hardware_can_filters
   return filters;
 }
 
-inline drivers::socketcan::SocketCanReceiver::CanFilterList virtual_motor_can_filters()
+inline drivers::socketcan::SocketCanReceiver::CanFilterList virtual_motor_can_filters(
+  const std::array<uint8_t, 2> node_ids)
 {
   drivers::socketcan::SocketCanReceiver::CanFilterList filters;
-  filters.filters.push_back(exact_standard_filter(protocol::command_id(1U)));
-  filters.filters.push_back(exact_standard_filter(protocol::command_id(2U)));
+  for (const auto node_id : node_ids) {
+    filters.filters.push_back(exact_standard_filter(protocol::command_id(node_id)));
+  }
   return filters;
 }
 
