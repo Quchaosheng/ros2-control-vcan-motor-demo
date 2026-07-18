@@ -54,6 +54,8 @@ public:
   : Node("virtual_motor")
   {
     can_interface_ = declare_parameter<std::string>("can_interface", "vcan0");
+    const auto left_node_id = declare_parameter<int64_t>("left_node_id", 1);
+    const auto right_node_id = declare_parameter<int64_t>("right_node_id", 2);
     const auto encoder_counts = declare_parameter<int64_t>(
       "encoder_counts_per_revolution", 4096);
     const double max_acceleration = declare_parameter<double>(
@@ -69,9 +71,15 @@ public:
     if (can_interface_.empty()) {
       throw std::invalid_argument("can_interface must not be empty");
     }
+    if (left_node_id < 1 || left_node_id > 127 || right_node_id < 1 ||
+      right_node_id > 127 || left_node_id == right_node_id)
+    {
+      throw std::invalid_argument("motor node IDs must be distinct values from 1 to 127");
+    }
     if (encoder_counts <= 0 || encoder_counts > std::numeric_limits<int32_t>::max()) {
       throw std::invalid_argument("encoder_counts_per_revolution is invalid");
     }
+    node_ids_ = {static_cast<uint8_t>(left_node_id), static_cast<uint8_t>(right_node_id)};
 
     motors_[0] = std::make_unique<MotorState>(
       static_cast<int32_t>(encoder_counts), max_acceleration);
@@ -80,7 +88,7 @@ public:
 
     sender_ = std::make_unique<drivers::socketcan::SocketCanSender>(can_interface_);
     receiver_ = std::make_unique<drivers::socketcan::SocketCanReceiver>(can_interface_);
-    receiver_->SetCanFilters(virtual_motor_can_filters());
+    receiver_->SetCanFilters(virtual_motor_can_filters(node_ids_));
 
     const auto now = std::chrono::steady_clock::now();
     last_command_.fill(now);
@@ -134,12 +142,13 @@ private:
           continue;
         }
 
-        std::size_t index = motors_.size();
-        if (can_id.identifier() == protocol::command_id(1U)) {
-          index = 0U;
-        } else if (can_id.identifier() == protocol::command_id(2U)) {
-          index = 1U;
-        } else {
+        std::size_t index = 0U;
+        while (index < node_ids_.size() &&
+          can_id.identifier() != protocol::command_id(node_ids_[index]))
+        {
+          ++index;
+        }
+        if (index == node_ids_.size()) {
           continue;
         }
 
@@ -238,7 +247,7 @@ private:
 
       const auto data = protocol::encode_feedback(feedback[index]);
       const drivers::socketcan::CanId can_id(
-        protocol::feedback_id(static_cast<uint8_t>(index + 1U)), 0U,
+        protocol::feedback_id(node_ids_[index]), 0U,
         drivers::socketcan::FrameType::DATA, drivers::socketcan::StandardFrame);
       const std::size_t length = every_n(malformed_feedback_every_n_, feedback_count_) ? 7U : 8U;
       if (feedback_delay_ms_ == 0) {
@@ -255,7 +264,7 @@ private:
   {
     const auto data = protocol::encode_ack({sequence, result});
     const drivers::socketcan::CanId can_id(
-      protocol::ack_id(static_cast<uint8_t>(index + 1U)), 0U,
+      protocol::ack_id(node_ids_[index]), 0U,
       drivers::socketcan::FrameType::DATA, drivers::socketcan::StandardFrame);
     send_frame(data, can_id, data.size());
   }
@@ -273,6 +282,7 @@ private:
   }
 
   std::string can_interface_;
+  std::array<uint8_t, 2> node_ids_{};
   std::array<std::unique_ptr<MotorState>, 2> motors_;
   std::array<std::chrono::steady_clock::time_point, 2> last_command_{};
   std::chrono::steady_clock::time_point last_update_{};

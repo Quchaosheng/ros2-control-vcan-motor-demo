@@ -25,10 +25,10 @@ TEST(CanFilters, HardwareAcceptsOnlyFeedbackAckAndErrors)
 }
 TEST(CanFilters, VirtualMotorAcceptsOnlyCommands)
 {
-  const auto filters = virtual_motor_can_filters();
+  const auto filters = virtual_motor_can_filters({17U, 23U});
   ASSERT_EQ(filters.filters.size(), 2U);
-  EXPECT_EQ(filters.filters[0].can_id, 0x101U);
-  EXPECT_EQ(filters.filters[1].can_id, 0x102U);
+  EXPECT_EQ(filters.filters[0].can_id, 0x111U);
+  EXPECT_EQ(filters.filters[1].can_id, 0x117U);
   for (const auto & filter : filters.filters) {
     EXPECT_EQ(filter.can_mask, CAN_SFF_MASK | CAN_EFF_FLAG | CAN_RTR_FLAG);
   }
