@@ -25,7 +25,7 @@
   <rect x="0" y="0" width="440" height="720" fill="url(#grid)"/>
   <text x="60" y="66" class="sans coral" font-size="16" font-weight="750" letter-spacing="2">FAULT LAB / SAFE-STOP MAP</text>
   <text x="60" y="116" class="sans ink" font-size="42" font-weight="760">Break the signal. Watch the system stop.</text>
-  <text x="60" y="151" class="sans muted" font-size="20">Every fault is repeatable, disabled by default, and visible on the CAN bus.</text>
+  <text x="60" y="151" class="sans muted" font-size="20">Faults are off by default and use deterministic every-N settings.</text>
   <path d="M60 180H1380" fill="none" stroke="#c9ceca" stroke-width="2"/>
 
   <!-- Normal path -->
@@ -69,7 +69,7 @@
     <text x="530" y="500" class="muted" font-size="15">either motor stops reporting fresh state</text>
     <text x="530" y="566" class="ink" font-size="19" font-weight="730">Frame validation</text>
     <text x="876" y="566" class="coral" font-size="17" font-weight="760" text-anchor="end">REJECT</text>
-    <text x="530" y="592" class="muted" font-size="15">bad DLC ignored · error frame warned</text>
+    <text x="530" y="592" class="muted" font-size="13">bad DLC ignored · error warned · no stop by itself</text>
 
     <rect x="506" y="630" width="394" height="38" rx="4" fill="#f4ded8" stroke="#d65f4a" stroke-width="2"/>
     <text x="530" y="655" class="coral" font-size="14" font-weight="760" letter-spacing="1.1">MOTOR WATCHDOG · 200 ms</text>
