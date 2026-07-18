@@ -64,6 +64,8 @@ public:
     const double feedback_rate = declare_parameter<double>("feedback_rate_hz", 50.0);
     drop_command_every_n_ = nonnegative_parameter("drop_command_every_n", 0);
     drop_feedback_every_n_ = nonnegative_parameter("drop_feedback_every_n", 0);
+    drop_command_node_id_ = nonnegative_parameter("drop_command_node_id", 0);
+    drop_feedback_node_id_ = nonnegative_parameter("drop_feedback_node_id", 0);
     feedback_delay_ms_ = nonnegative_parameter("feedback_delay_ms", 0);
     malformed_feedback_every_n_ = nonnegative_parameter("malformed_feedback_every_n", 0);
     error_frame_every_n_ = nonnegative_parameter("error_frame_every_n", 0);
@@ -80,6 +82,8 @@ public:
       throw std::invalid_argument("encoder_counts_per_revolution is invalid");
     }
     node_ids_ = {static_cast<uint8_t>(left_node_id), static_cast<uint8_t>(right_node_id)};
+    validate_node_selector("drop_command_node_id", drop_command_node_id_);
+    validate_node_selector("drop_feedback_node_id", drop_feedback_node_id_);
 
     motors_[0] = std::make_unique<MotorState>(
       static_cast<int32_t>(encoder_counts), max_acceleration);
@@ -132,6 +136,15 @@ private:
     return value;
   }
 
+  void validate_node_selector(const std::string & name, const int64_t value) const
+  {
+    if (value != 0 && value != node_ids_[0] && value != node_ids_[1]) {
+      throw std::invalid_argument(
+              name + " must be 0 or one of configured motor node IDs " +
+              std::to_string(node_ids_[0]) + ", " + std::to_string(node_ids_[1]));
+    }
+  }
+
   void receive_loop()
   {
     while (running_.load()) {
@@ -153,7 +166,9 @@ private:
         }
 
         ++command_count_;
-        if (every_n(drop_command_every_n_, command_count_)) {
+        if (drop_command_node_id_ == node_ids_[index] ||
+          every_n(drop_command_every_n_, command_count_))
+        {
           continue;
         }
 
@@ -233,7 +248,9 @@ private:
 
     for (std::size_t index = 0; index < feedback.size(); ++index) {
       ++feedback_count_;
-      if (every_n(drop_feedback_every_n_, feedback_count_)) {
+      if (drop_feedback_node_id_ == node_ids_[index] ||
+        every_n(drop_feedback_every_n_, feedback_count_))
+      {
         continue;
       }
 
@@ -289,6 +306,8 @@ private:
 
   int64_t drop_command_every_n_{0};
   int64_t drop_feedback_every_n_{0};
+  int64_t drop_command_node_id_{0};
+  int64_t drop_feedback_node_id_{0};
   int64_t feedback_delay_ms_{0};
   int64_t malformed_feedback_every_n_{0};
   int64_t error_frame_every_n_{0};

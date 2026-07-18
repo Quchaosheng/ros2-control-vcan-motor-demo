@@ -29,7 +29,7 @@ def generate_test_description():
         PythonLaunchDescriptionSource(launch_file),
         launch_arguments={
             "can_interface": can_interface,
-            "drop_command_every_n": "1",
+            "drop_command_node_id": "1",
             "spawn_controllers": "false",
         }.items(),
     )

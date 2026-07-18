@@ -19,6 +19,8 @@ def generate_launch_description():
     feedback_timeout_ms = LaunchConfiguration("feedback_timeout_ms")
     drop_command_every_n = LaunchConfiguration("drop_command_every_n")
     drop_feedback_every_n = LaunchConfiguration("drop_feedback_every_n")
+    drop_command_node_id = LaunchConfiguration("drop_command_node_id")
+    drop_feedback_node_id = LaunchConfiguration("drop_feedback_node_id")
     feedback_delay_ms = LaunchConfiguration("feedback_delay_ms")
     malformed_feedback_every_n = LaunchConfiguration("malformed_feedback_every_n")
     error_frame_every_n = LaunchConfiguration("error_frame_every_n")
@@ -77,6 +79,12 @@ def generate_launch_description():
                 ),
                 "drop_feedback_every_n": ParameterValue(
                     drop_feedback_every_n, value_type=int
+                ),
+                "drop_command_node_id": ParameterValue(
+                    drop_command_node_id, value_type=int
+                ),
+                "drop_feedback_node_id": ParameterValue(
+                    drop_feedback_node_id, value_type=int
                 ),
                 "feedback_delay_ms": ParameterValue(feedback_delay_ms, value_type=int),
                 "malformed_feedback_every_n": ParameterValue(
@@ -146,6 +154,8 @@ def generate_launch_description():
         DeclareLaunchArgument("feedback_timeout_ms", default_value="500"),
         DeclareLaunchArgument("drop_command_every_n", default_value="0"),
         DeclareLaunchArgument("drop_feedback_every_n", default_value="0"),
+        DeclareLaunchArgument("drop_command_node_id", default_value="0"),
+        DeclareLaunchArgument("drop_feedback_node_id", default_value="0"),
         DeclareLaunchArgument("feedback_delay_ms", default_value="0"),
         DeclareLaunchArgument("malformed_feedback_every_n", default_value="0"),
         DeclareLaunchArgument("error_frame_every_n", default_value="0"),
