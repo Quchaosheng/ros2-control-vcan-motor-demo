@@ -13,6 +13,8 @@ import pytest
 
 
 CAN_FRAME_FORMAT = "=IB3x8s"
+CAN_ERR_FLAG = 0x20000000
+CAN_ERR_MASK = 0x1FFFFFFF
 
 
 def ensure_vcan():
@@ -40,6 +42,9 @@ def generate_test_description():
                 "max_acceleration_rad_s2": 20.0,
                 "update_rate_hz": 100.0,
                 "feedback_rate_hz": 50.0,
+                "feedback_delay_ms": 5,
+                "malformed_feedback_every_n": 3,
+                "error_frame_every_n": 4,
             }
         ],
     )
@@ -52,6 +57,11 @@ class TestVirtualMotorNode(unittest.TestCase):
 
         can_socket = socket.socket(socket.PF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
         self.addCleanup(can_socket.close)
+        can_socket.setsockopt(
+            socket.SOL_CAN_RAW,
+            socket.CAN_RAW_ERR_FILTER,
+            struct.pack("=I", CAN_ERR_MASK),
+        )
         can_socket.bind(("vcan0",))
         can_socket.settimeout(0.2)
 
@@ -88,3 +98,21 @@ class TestVirtualMotorNode(unittest.TestCase):
                 watchdog_stopped = bool(data[1] & 0x02) and abs(velocity) < 50
 
         self.assertTrue(watchdog_stopped)
+
+        error_frame_received = False
+        malformed_feedback_received = False
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline and not (
+            error_frame_received and malformed_feedback_received
+        ):
+            try:
+                can_id, dlc, _ = struct.unpack(CAN_FRAME_FORMAT, can_socket.recv(16))
+            except socket.timeout:
+                continue
+            error_frame_received = error_frame_received or bool(can_id & CAN_ERR_FLAG)
+            malformed_feedback_received = malformed_feedback_received or (
+                can_id in (0x181, 0x182) and dlc == 7
+            )
+
+        self.assertTrue(error_frame_received)
+        self.assertTrue(malformed_feedback_received)
