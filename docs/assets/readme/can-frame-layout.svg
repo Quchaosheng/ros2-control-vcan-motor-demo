@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="880" viewBox="0 0 1440 880" role="img" aria-labelledby="title desc">
+  <title id="title">Virtual motor CAN frame layout</title>
+  <desc id="desc">Byte layout for the command, encoder feedback, and acknowledgement frames used by the two virtual motors.</desc>
+  <defs>
+    <style>
+      .sans { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+      .mono { font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace; }
+      .ink { fill: #222b2e; }
+      .muted { fill: #697477; }
+      .teal { fill: #197c7a; }
+      .coral { fill: #d65f4a; }
+    </style>
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="#d9ddd8" stroke-width="1" opacity="0.45"/>
+    </pattern>
+  </defs>
+
+  <rect width="1440" height="880" fill="#f5f3ee"/>
+  <rect x="0" y="0" width="1440" height="202" fill="url(#grid)"/>
+  <text x="60" y="66" class="sans teal" font-size="16" font-weight="750" letter-spacing="2">CAN PROTOCOL / BYTE MAP</text>
+  <text x="60" y="118" class="sans ink" font-size="42" font-weight="760">Eight bytes, kept deliberately boring.</text>
+  <text x="60" y="154" class="sans muted" font-size="20">One sequence number ties commands, acknowledgements, and encoder state together.</text>
+
+  <rect x="954" y="46" width="426" height="112" rx="4" fill="#222b2e"/>
+  <text x="980" y="76" class="sans" fill="#8fbfbd" font-size="13" font-weight="750" letter-spacing="1.4">FRAME CONTRACT</text>
+  <text x="980" y="109" class="sans" fill="#f5f3ee" font-size="18" font-weight="720">CLASSIC CAN · 11-BIT ID · DLC 8</text>
+  <text x="980" y="137" class="sans" fill="#c9ceca" font-size="16">little-endian multibyte fields</text>
+
+  <!-- Byte index ruler -->
+  <text x="60" y="246" class="sans muted" font-size="13" font-weight="750" letter-spacing="1.6">FRAME FAMILY</text>
+  <g class="mono muted" font-size="14" font-weight="700" text-anchor="middle">
+    <text x="408" y="246">BYTE 0</text><text x="524" y="246">BYTE 1</text>
+    <text x="640" y="246">BYTE 2</text><text x="756" y="246">BYTE 3</text>
+    <text x="872" y="246">BYTE 4</text><text x="988" y="246">BYTE 5</text>
+    <text x="1104" y="246">BYTE 6</text><text x="1220" y="246">BYTE 7</text>
+  </g>
+  <path d="M60 264H1380" stroke="#c9ceca" stroke-width="2"/>
+
+  <!-- Command row -->
+  <g class="sans">
+    <text x="60" y="316" class="ink" font-size="24" font-weight="760">COMMAND</text>
+    <text x="60" y="347" class="mono coral" font-size="18" font-weight="700">0x101 / 0x102</text>
+    <text x="60" y="374" class="muted" font-size="15">hardware → motors</text>
+    <rect x="350" y="282" width="116" height="104" fill="#faf9f5" stroke="#aeb7b4" stroke-width="2"/>
+    <rect x="466" y="282" width="116" height="104" fill="#faf9f5" stroke="#aeb7b4" stroke-width="2"/>
+    <rect x="582" y="282" width="232" height="104" fill="#dfeceb" stroke="#197c7a" stroke-width="2"/>
+    <rect x="814" y="282" width="232" height="104" fill="#dfeceb" stroke="#197c7a" stroke-width="2"/>
+    <rect x="1046" y="282" width="232" height="104" fill="#eceeeb" stroke="#aeb7b4" stroke-width="2"/>
+    <path d="M698 282V386M930 282V386M1162 282V386" stroke="#aeb7b4" stroke-width="1.5"/>
+    <text x="408" y="326" class="ink" font-size="17" font-weight="730" text-anchor="middle">SEQ</text>
+    <text x="408" y="354" class="muted" font-size="13" text-anchor="middle">u8</text>
+    <text x="524" y="326" class="ink" font-size="17" font-weight="730" text-anchor="middle">FLAGS</text>
+    <text x="524" y="354" class="muted" font-size="13" text-anchor="middle">bit 0: enable</text>
+    <text x="698" y="326" class="teal" font-size="17" font-weight="760" text-anchor="middle">TARGET VELOCITY</text>
+    <text x="698" y="354" class="muted" font-size="13" text-anchor="middle">i16 · mrad/s · LE</text>
+    <text x="930" y="326" class="teal" font-size="17" font-weight="760" text-anchor="middle">WATCHDOG</text>
+    <text x="930" y="354" class="muted" font-size="13" text-anchor="middle">u16 · ms · LE</text>
+    <text x="1162" y="326" class="muted" font-size="17" font-weight="730" text-anchor="middle">RESERVED</text>
+    <text x="1162" y="354" class="muted" font-size="13" text-anchor="middle">must be zero</text>
+  </g>
+
+  <!-- Feedback row -->
+  <g class="sans">
+    <text x="60" y="466" class="ink" font-size="24" font-weight="760">FEEDBACK</text>
+    <text x="60" y="497" class="mono teal" font-size="18" font-weight="700">0x181 / 0x182</text>
+    <text x="60" y="524" class="muted" font-size="15">motors → hardware</text>
+    <rect x="350" y="432" width="116" height="104" fill="#faf9f5" stroke="#aeb7b4" stroke-width="2"/>
+    <rect x="466" y="432" width="116" height="104" fill="#faf9f5" stroke="#aeb7b4" stroke-width="2"/>
+    <rect x="582" y="432" width="232" height="104" fill="#dfeceb" stroke="#197c7a" stroke-width="2"/>
+    <rect x="814" y="432" width="464" height="104" fill="#dfeceb" stroke="#197c7a" stroke-width="2"/>
+    <path d="M698 432V536M930 432V536M1046 432V536M1162 432V536" stroke="#aeb7b4" stroke-width="1.5"/>
+    <text x="408" y="476" class="ink" font-size="17" font-weight="730" text-anchor="middle">SEQ</text>
+    <text x="408" y="504" class="muted" font-size="13" text-anchor="middle">last accepted</text>
+    <text x="524" y="476" class="ink" font-size="17" font-weight="730" text-anchor="middle">STATUS</text>
+    <text x="524" y="504" class="muted" font-size="13" text-anchor="middle">bit field</text>
+    <text x="698" y="476" class="teal" font-size="17" font-weight="760" text-anchor="middle">MEASURED VELOCITY</text>
+    <text x="698" y="504" class="muted" font-size="13" text-anchor="middle">i16 · mrad/s · LE</text>
+    <text x="1046" y="476" class="teal" font-size="17" font-weight="760" text-anchor="middle">ENCODER COUNT</text>
+    <text x="1046" y="504" class="muted" font-size="13" text-anchor="middle">i32 · signed · LE</text>
+  </g>
+
+  <!-- ACK row -->
+  <g class="sans">
+    <text x="60" y="616" class="ink" font-size="24" font-weight="760">ACK</text>
+    <text x="60" y="647" class="mono teal" font-size="18" font-weight="700">0x281 / 0x282</text>
+    <text x="60" y="674" class="muted" font-size="15">motors → hardware</text>
+    <rect x="350" y="582" width="116" height="104" fill="#faf9f5" stroke="#aeb7b4" stroke-width="2"/>
+    <rect x="466" y="582" width="116" height="104" fill="#faf9f5" stroke="#aeb7b4" stroke-width="2"/>
+    <rect x="582" y="582" width="696" height="104" fill="#eceeeb" stroke="#aeb7b4" stroke-width="2"/>
+    <path d="M698 582V686M814 582V686M930 582V686M1046 582V686M1162 582V686" stroke="#aeb7b4" stroke-width="1.5"/>
+    <text x="408" y="626" class="ink" font-size="17" font-weight="730" text-anchor="middle">SEQ</text>
+    <text x="408" y="654" class="muted" font-size="13" text-anchor="middle">u8</text>
+    <text x="524" y="626" class="ink" font-size="17" font-weight="730" text-anchor="middle">RESULT</text>
+    <text x="524" y="654" class="muted" font-size="13" text-anchor="middle">0 / 1 / 2</text>
+    <text x="930" y="626" class="muted" font-size="17" font-weight="730" text-anchor="middle">RESERVED · SIX BYTES</text>
+    <text x="930" y="654" class="muted" font-size="13" text-anchor="middle">must be zero</text>
+  </g>
+
+  <!-- Legend -->
+  <path d="M60 730H1380" stroke="#c9ceca" stroke-width="2"/>
+  <g class="sans">
+    <text x="60" y="772" class="muted" font-size="13" font-weight="750" letter-spacing="1.4">STATUS BITS</text>
+    <text x="190" y="772" class="ink" font-size="16"><tspan font-weight="750">0</tspan> enabled</text>
+    <text x="310" y="772" class="ink" font-size="16"><tspan font-weight="750">1</tspan> watchdog stopped</text>
+    <text x="510" y="772" class="ink" font-size="16"><tspan font-weight="750">2</tspan> protocol fault</text>
+    <text x="760" y="772" class="muted" font-size="13" font-weight="750" letter-spacing="1.4">ACK RESULT</text>
+    <text x="882" y="772" class="ink" font-size="16"><tspan font-weight="750">0</tspan> accepted</text>
+    <text x="1008" y="772" class="ink" font-size="16"><tspan font-weight="750">1</tspan> invalid DLC</text>
+    <text x="1145" y="772" class="ink" font-size="16"><tspan font-weight="750">2</tspan> reserved bytes</text>
+  </g>
+  <text x="60" y="830" class="sans muted" font-size="15">Multibyte integers are serialized least-significant byte first.</text>
+  <text x="1380" y="830" class="sans muted" font-size="14" font-weight="700" letter-spacing="1.2" text-anchor="end">SOURCE: CAN_PROTOCOL.HPP</text>
+</svg>
