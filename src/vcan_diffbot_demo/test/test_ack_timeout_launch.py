@@ -45,7 +45,7 @@ class TestAckTimeout(unittest.TestCase):
         can_socket.bind((can_interface,))
         can_socket.settimeout(0.2)
 
-        proc_output.assertWaitFor("ACK timeout for motor node", timeout=10.0)
+        proc_output.assertWaitFor("ACK timeout for motor node 1", timeout=10.0)
 
         safe_stop_received = False
         deadline = time.monotonic() + 2.0
