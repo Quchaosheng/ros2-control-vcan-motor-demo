@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="640" viewBox="0 0 1440 640" role="img" aria-labelledby="title desc">
+  <title id="title">ros2-control-vcan-motor-demo</title>
+  <desc id="desc">Bench manual style project banner with a differential-drive robot, CAN signal trace, and verified project facts.</desc>
+  <defs>
+    <style>
+      .sans { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+      .ink { fill: #222b2e; }
+      .muted { fill: #697477; }
+      .teal { fill: #197c7a; }
+      .coral { fill: #d65f4a; }
+      .rule { stroke: #c9ceca; }
+    </style>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#d9ddd8" stroke-width="1" opacity="0.55"/>
+    </pattern>
+  </defs>
+
+  <rect width="1440" height="640" fill="#f5f3ee"/>
+  <rect x="886" y="0" width="554" height="520" fill="url(#grid)"/>
+  <path d="M72 58H1368" class="rule" fill="none" stroke-width="2"/>
+  <circle cx="72" cy="58" r="5" fill="#197c7a"/>
+  <text x="88" y="65" class="sans teal" font-size="18" font-weight="700" letter-spacing="2">OPEN-SOURCE ROBOTICS / LAB NOTE 01</text>
+  <text x="1368" y="65" class="sans muted" font-size="17" text-anchor="end">ROS 2 HUMBLE · SOCKETCAN · C++17</text>
+
+  <text x="72" y="164" class="sans ink" font-size="27" font-weight="650">ROS 2 CONTROL, WITHOUT THE BENCH HARDWARE</text>
+  <text x="72" y="245" class="sans ink" font-size="64" font-weight="780">ros2-control-vcan</text>
+  <text x="72" y="313" class="sans ink" font-size="64" font-weight="780">motor-demo</text>
+  <rect x="72" y="348" width="112" height="5" fill="#d65f4a"/>
+  <text x="72" y="398" class="sans muted" font-size="25">A differential-drive control loop you can run</text>
+  <text x="72" y="432" class="sans muted" font-size="25">without a motor controller.</text>
+
+  <!-- Differential-drive robot, drawn like a service-manual figure. -->
+  <g transform="translate(930 116)">
+    <text x="0" y="0" class="sans muted" font-size="15" font-weight="700" letter-spacing="1.5">FIG. A / VIRTUAL DIFFBOT</text>
+    <path d="M51 171H369" fill="none" stroke="#222b2e" stroke-width="4"/>
+    <path d="M89 100H331L363 171H57Z" fill="#f5f3ee" stroke="#222b2e" stroke-width="4"/>
+    <rect x="137" y="58" width="146" height="42" fill="#f5f3ee" stroke="#222b2e" stroke-width="4"/>
+    <circle cx="105" cy="181" r="43" fill="#f5f3ee" stroke="#222b2e" stroke-width="6"/>
+    <circle cx="315" cy="181" r="43" fill="#f5f3ee" stroke="#222b2e" stroke-width="6"/>
+    <circle cx="105" cy="181" r="12" fill="#197c7a"/>
+    <circle cx="315" cy="181" r="12" fill="#197c7a"/>
+    <path d="M210 58V25M194 25H226" fill="none" stroke="#222b2e" stroke-width="4"/>
+    <circle cx="210" cy="25" r="7" fill="#d65f4a"/>
+    <path d="M151 121H269" fill="none" stroke="#197c7a" stroke-width="6"/>
+    <path d="M210 121V153M176 153H244" fill="none" stroke="#197c7a" stroke-width="4"/>
+    <text x="105" y="246" class="sans ink" font-size="17" font-weight="700" text-anchor="middle">NODE 1</text>
+    <text x="315" y="246" class="sans ink" font-size="17" font-weight="700" text-anchor="middle">NODE 2</text>
+    <text x="105" y="270" class="sans muted" font-size="15" text-anchor="middle">LEFT MOTOR</text>
+    <text x="315" y="270" class="sans muted" font-size="15" text-anchor="middle">RIGHT MOTOR</text>
+  </g>
+
+  <!-- CAN trace -->
+  <g transform="translate(895 437)">
+    <path d="M0 24H58L74 2L92 46L110 13L126 34H474" fill="none" stroke="#197c7a" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="0" cy="24" r="7" fill="#d65f4a"/>
+    <circle cx="474" cy="24" r="7" fill="#197c7a"/>
+    <text x="0" y="66" class="sans muted" font-size="15" font-weight="700" letter-spacing="1.4">SOCKETCAN / VCAN0 / CLOSED LOOP</text>
+  </g>
+
+  <!-- Facts strip -->
+  <rect x="0" y="520" width="1440" height="120" fill="#222b2e"/>
+  <g class="sans">
+    <path d="M360 548V612M720 548V612M1080 548V612" stroke="#526064" stroke-width="2"/>
+    <text x="72" y="573" fill="#8fbfbd" font-size="15" font-weight="750" letter-spacing="1.7">TEST SUITE</text>
+    <text x="72" y="608" fill="#f5f3ee" font-size="29" font-weight="760">42 TESTS</text>
+
+    <text x="408" y="573" fill="#8fbfbd" font-size="15" font-weight="750" letter-spacing="1.7">PLANT</text>
+    <text x="408" y="608" fill="#f5f3ee" font-size="29" font-weight="760">2 VIRTUAL MOTORS</text>
+
+    <text x="768" y="573" fill="#8fbfbd" font-size="15" font-weight="750" letter-spacing="1.7">PROTOCOL</text>
+    <text x="768" y="608" fill="#f5f3ee" font-size="29" font-weight="760">6 CAN IDS</text>
+
+    <text x="1128" y="573" fill="#ef9b8d" font-size="15" font-weight="750" letter-spacing="1.7">REQUIRED</text>
+    <text x="1128" y="608" fill="#f5f3ee" font-size="25" font-weight="760">0 PHYSICAL HARDWARE</text>
+  </g>
+</svg>
