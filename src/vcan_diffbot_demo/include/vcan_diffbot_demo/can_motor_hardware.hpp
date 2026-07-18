@@ -55,6 +55,8 @@ private:
   std::array<uint8_t, 2> sequences_{};
   std::chrono::milliseconds ack_timeout_{0};
   HardwareHealth health_;
+  std::string last_can_error_;
+  std::string stop_reason_;
 
   std::unique_ptr<drivers::socketcan::SocketCanSender> sender_;
   std::unique_ptr<drivers::socketcan::SocketCanReceiver> receiver_;
