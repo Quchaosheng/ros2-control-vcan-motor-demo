@@ -27,6 +27,8 @@ RIGHT_ACK_ID = 0x280 + RIGHT_NODE_ID
 FEEDBACK_IDS = (LEFT_FEEDBACK_ID, RIGHT_FEEDBACK_ID)
 RESPONSE_IDS = (LEFT_FEEDBACK_ID, LEFT_ACK_ID, RIGHT_FEEDBACK_ID, RIGHT_ACK_ID)
 LEGACY_RESPONSE_IDS = (0x181, 0x182, 0x281, 0x282)
+ALL_ACK_IDS = (LEFT_ACK_ID, RIGHT_ACK_ID, 0x281, 0x282)
+ALL_FEEDBACK_IDS = (LEFT_FEEDBACK_ID, RIGHT_FEEDBACK_ID, 0x181, 0x182)
 
 
 @pytest.mark.launch_test
@@ -112,6 +114,50 @@ class TestVirtualMotorNode(unittest.TestCase):
         self.assertEqual(ack_sequences, {9, 10})
         self.assertEqual(positive_feedback_sequences, {9, 10})
         self.assertGreaterEqual(response_frames, 4)
+
+        legacy_command_sequences = {201, 202}
+        can_socket.send(
+            struct.pack(
+                CAN_FRAME_FORMAT,
+                0x101,
+                8,
+                struct.pack("<BBhH2x", 201, 1, 1001, 200),
+            )
+        )
+        can_socket.send(
+            struct.pack(
+                CAN_FRAME_FORMAT,
+                0x102,
+                8,
+                struct.pack("<BBhH2x", 202, 1, 1201, 200),
+            )
+        )
+
+        legacy_ack_sequences = set()
+        legacy_feedback_sequences = set()
+        configured_feedback_frames = 0
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            try:
+                can_id, dlc, data = struct.unpack(CAN_FRAME_FORMAT, can_socket.recv(16))
+            except socket.timeout:
+                continue
+            if can_id in LEGACY_RESPONSE_IDS:
+                legacy_response_ids.add(can_id)
+            if can_id in FEEDBACK_IDS and dlc == 8:
+                configured_feedback_frames += 1
+            if can_id in ALL_ACK_IDS and dlc == 8 and data[0] in legacy_command_sequences:
+                legacy_ack_sequences.add(data[0])
+            if (
+                can_id in ALL_FEEDBACK_IDS
+                and dlc == 8
+                and data[0] in legacy_command_sequences
+            ):
+                legacy_feedback_sequences.add(data[0])
+
+        self.assertGreater(configured_feedback_frames, 0)
+        self.assertEqual(legacy_ack_sequences, set())
+        self.assertEqual(legacy_feedback_sequences, set())
 
         watchdog_stopped = False
         deadline = time.monotonic() + 2.0
