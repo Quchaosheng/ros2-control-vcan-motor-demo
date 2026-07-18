@@ -1,6 +1,5 @@
 import socket
 import struct
-import subprocess
 import time
 import unittest
 
@@ -11,25 +10,17 @@ import launch_testing.actions
 import launch_testing.markers
 import pytest
 
+from vcan_test_utils import create_test_vcan
+
 
 CAN_FRAME_FORMAT = "=IB3x8s"
 CAN_ERR_FLAG = 0x20000000
 CAN_ERR_MASK = 0x1FFFFFFF
 
 
-def ensure_vcan():
-    subprocess.run(["sudo", "modprobe", "vcan"], check=False)
-    if subprocess.run(["ip", "link", "show", "vcan0"], check=False).returncode != 0:
-        subprocess.run(
-            ["sudo", "ip", "link", "add", "dev", "vcan0", "type", "vcan"],
-            check=True,
-        )
-    subprocess.run(["sudo", "ip", "link", "set", "up", "vcan0"], check=True)
-
-
 @pytest.mark.launch_test
 def generate_test_description():
-    ensure_vcan()
+    can_interface = create_test_vcan()
     motor = launch_ros.actions.Node(
         package="vcan_diffbot_demo",
         executable="virtual_motor_node",
@@ -37,7 +28,7 @@ def generate_test_description():
         output="screen",
         parameters=[
             {
-                "can_interface": "vcan0",
+                "can_interface": can_interface,
                 "encoder_counts_per_revolution": 4096,
                 "max_acceleration_rad_s2": 20.0,
                 "update_rate_hz": 100.0,
@@ -48,12 +39,16 @@ def generate_test_description():
             }
         ],
     )
-    return launch.LaunchDescription([motor, launch_testing.actions.ReadyToTest()])
+    return launch.LaunchDescription([motor, launch_testing.actions.ReadyToTest()]), {
+        "can_interface": can_interface
+    }
 
 
 class TestVirtualMotorNode(unittest.TestCase):
-    def test_ack_feedback_and_watchdog(self, proc_output):
-        proc_output.assertWaitFor("Virtual motors listening on vcan0", timeout=5.0)
+    def test_ack_feedback_and_watchdog(self, proc_output, can_interface):
+        proc_output.assertWaitFor(
+            f"Virtual motors listening on {can_interface}", timeout=5.0
+        )
 
         can_socket = socket.socket(socket.PF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
         self.addCleanup(can_socket.close)
@@ -62,7 +57,7 @@ class TestVirtualMotorNode(unittest.TestCase):
             socket.CAN_RAW_ERR_FILTER,
             struct.pack("=I", CAN_ERR_MASK),
         )
-        can_socket.bind(("vcan0",))
+        can_socket.bind((can_interface,))
         can_socket.settimeout(0.2)
 
         command = struct.pack("<BBhH2x", 9, 1, 1500, 200)
