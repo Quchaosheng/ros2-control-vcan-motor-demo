@@ -50,20 +50,33 @@ if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   find_package(launch_testing_ament_cmake REQUIRED)
 
+  configure_file(test/vcan_test_utils.py vcan_test_utils.py COPYONLY)
+
   ament_add_gtest(test_can_protocol test/test_can_protocol.cpp)
   target_include_directories(test_can_protocol PRIVATE include)
 
   ament_add_gtest(test_motor_state test/test_motor_state.cpp)
   target_include_directories(test_motor_state PRIVATE include)
 
+  ament_add_gtest(test_hardware_health test/test_hardware_health.cpp)
+  target_include_directories(test_hardware_health PRIVATE include)
+
+  ament_add_gtest(test_can_filters test/test_can_filters.cpp)
+  target_include_directories(test_can_filters PRIVATE include)
+  ament_target_dependencies(test_can_filters ros2_socketcan)
+
   ament_add_pytest_test(test_urdf_xacro test/test_urdf_xacro.py)
+  ament_add_pytest_test(test_vcan_test_utils test/test_vcan_test_utils.py)
 
   ament_add_gtest(test_hardware_plugin test/test_hardware_plugin.cpp)
   ament_target_dependencies(test_hardware_plugin hardware_interface pluginlib)
+  target_include_directories(test_hardware_plugin PRIVATE include)
+  target_link_libraries(test_hardware_plugin vcan_diffbot_hardware)
 
   add_launch_test(test/test_virtual_motor_node.py TIMEOUT 60)
   add_launch_test(test/test_demo_launch.py TIMEOUT 90)
   add_launch_test(test/test_feedback_timeout_launch.py TIMEOUT 60)
+  add_launch_test(test/test_ack_timeout_launch.py TIMEOUT 60)
 endif()
 
 ament_export_targets(export_vcan_diffbot_hardware HAS_LIBRARY_TARGET)
