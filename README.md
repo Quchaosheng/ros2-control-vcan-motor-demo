@@ -5,6 +5,8 @@
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)
 ![License Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-2C8EBB)
 
+![Bench manual view of the ros2_control vcan virtual motor demo](docs/assets/readme/hero-bench-manual.svg)
+
 A ROS 2 Humble differential-drive demo that runs a `ros2_control` hardware interface against two
 virtual motors on SocketCAN. It is small enough to read end to end, but still covers the parts that
 matter in a real driver: command and state interfaces, ACK tracking, encoder feedback, watchdogs,
@@ -23,22 +25,7 @@ safe stopping, receive filters, and deterministic CAN faults.
 
 ## Data flow
 
-```mermaid
-flowchart LR
-    CMD["/diffbot_base_controller/cmd_vel"]
-    CTRL["diff_drive_controller"]
-    WRITE["CanMotorHardware::write()"]
-    CAN["SocketCAN vcan0"]
-    MOTOR["virtual_motor_node"]
-    READ["CanMotorHardware::read()"]
-    STATE["/joint_states and /odom"]
-
-    CMD --> CTRL --> WRITE
-    WRITE -->|"velocity commands 0x101 / 0x102"| CAN
-    CAN --> MOTOR
-    MOTOR -->|"ACK and encoder feedback"| CAN
-    CAN --> READ --> STATE
-```
+![Control path from cmd_vel through ros2_control and vcan to two virtual motors](docs/assets/readme/control-loop.svg)
 
 Both endpoints use the `ros2_socketcan` C++ sender and receiver APIs directly. ROS topics are not
 used as a bridge for CAN traffic.
@@ -135,6 +122,8 @@ Normal traffic contains the following identifiers:
 
 All frames use classic 11-bit CAN identifiers, DLC 8, and little-endian multibyte fields.
 
+![Byte layout of command, feedback, and ACK CAN frames](docs/assets/readme/can-frame-layout.svg)
+
 ### Velocity command
 
 | Byte | Field |
@@ -170,6 +159,8 @@ uses the same safe-stop path.
 
 Faults are disabled by default. Every-N settings are deterministic, which keeps failures
 repeatable during tests.
+
+![Fault injection, timeout checks, watchdog, and safe-stop paths](docs/assets/readme/safety-path.svg)
 
 ```bash
 ros2 launch vcan_diffbot_demo demo.launch.py \
