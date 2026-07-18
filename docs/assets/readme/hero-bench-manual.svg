@@ -71,6 +71,6 @@
     <text x="768" y="608" fill="#f5f3ee" font-size="29" font-weight="760">6 CAN IDS</text>
 
     <text x="1128" y="573" fill="#ef9b8d" font-size="15" font-weight="750" letter-spacing="1.7">REQUIRED</text>
-    <text x="1128" y="608" fill="#f5f3ee" font-size="29" font-weight="760">0 PHYSICAL HARDWARE</text>
+    <text x="1128" y="608" fill="#f5f3ee" font-size="25" font-weight="760">0 PHYSICAL HARDWARE</text>
   </g>
 </svg>
