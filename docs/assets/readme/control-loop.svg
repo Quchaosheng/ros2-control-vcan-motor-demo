@@ -86,9 +86,9 @@
   </g>
 
   <path d="M1170 535H1122M1026 535H954M648 535H600" fill="none" stroke="#435053" stroke-width="4" stroke-dasharray="10 7" marker-end="url(#arrow-ink)"/>
-  <rect x="922" y="503" width="126" height="48" fill="#f5f3ee"/>
-  <text x="985" y="521" class="sans ink" font-size="13" font-weight="750" text-anchor="middle">0x181 · 0x182</text>
-  <text x="985" y="541" class="sans ink" font-size="13" font-weight="750" text-anchor="middle">0x281 · 0x282</text>
+  <rect x="844" y="426" width="176" height="40" fill="#f5f3ee"/>
+  <text x="932" y="443" class="sans ink" font-size="12" font-weight="750" text-anchor="middle">FEEDBACK 0x181 · 0x182</text>
+  <text x="932" y="460" class="sans ink" font-size="12" font-weight="750" text-anchor="middle">ACK 0x281 · 0x282</text>
 
   <!-- Bottom notes -->
   <path d="M60 642H1380" fill="none" stroke="#c9ceca" stroke-width="2"/>
