@@ -12,6 +12,13 @@ virtual motors on SocketCAN. It is small enough to read end to end, but still co
 matter in a real driver: command and state interfaces, ACK tracking, encoder feedback, watchdogs,
 safe stopping, receive filters, and deterministic CAN faults.
 
+## Demo
+
+[![Recorded vcan DiffBot run with CAN and safety telemetry](docs/demo/vcan_diffbot_demo.gif)](docs/demo/vcan_diffbot_demo.mp4)
+
+The recording shows a normal closed loop followed by a real one-sided feedback timeout and the
+disabled zero commands used to stop both motors. [Open the full MP4](docs/demo/vcan_diffbot_demo.mp4).
+
 ## What is included
 
 | Component | Role |
@@ -210,6 +217,11 @@ Launch tests create process-specific virtual CAN interfaces instead of sharing `
 an interface requires root or passwordless non-interactive `sudo`. Each test deletes only the
 interface it created.
 
+## Learning guide
+
+The Chinese [project learning and technical review guide](docs/learning-guide.zh-CN.md) covers the control
+loop, module boundaries, CAN protocol, safety design, run commands, and 20 high-ROI questions.
+
 ## Project layout
 
 ```text
@@ -247,6 +259,13 @@ candump -L vcan0
 ```
 
 You should see command, ACK, and feedback frames for both node IDs.
+
+## Demo scope
+
+This repository validates the software control contract, SocketCAN transport, state feedback,
+watchdogs, and safe-stop behavior. `vcan` does not model physical motor loads, electrical CAN
+faults, arbitration timing, encoder noise, or production safety certification. Those require real
+hardware, bus instrumentation, calibration, and system-level safety analysis.
 
 ## References
 
