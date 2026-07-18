@@ -21,7 +21,12 @@ RIGHT_NODE_ID = 23
 LEFT_COMMAND_ID = 0x100 + LEFT_NODE_ID
 LEFT_FEEDBACK_ID = 0x180 + LEFT_NODE_ID
 LEFT_ACK_ID = 0x280 + LEFT_NODE_ID
-FEEDBACK_IDS = (LEFT_FEEDBACK_ID, 0x180 + RIGHT_NODE_ID)
+RIGHT_COMMAND_ID = 0x100 + RIGHT_NODE_ID
+RIGHT_FEEDBACK_ID = 0x180 + RIGHT_NODE_ID
+RIGHT_ACK_ID = 0x280 + RIGHT_NODE_ID
+FEEDBACK_IDS = (LEFT_FEEDBACK_ID, RIGHT_FEEDBACK_ID)
+RESPONSE_IDS = (LEFT_FEEDBACK_ID, LEFT_ACK_ID, RIGHT_FEEDBACK_ID, RIGHT_ACK_ID)
+LEGACY_RESPONSE_IDS = (0x181, 0x182, 0x281, 0x282)
 
 
 @pytest.mark.launch_test
@@ -68,26 +73,45 @@ class TestVirtualMotorNode(unittest.TestCase):
         can_socket.bind((can_interface,))
         can_socket.settimeout(0.2)
 
-        command = struct.pack("<BBhH2x", 9, 1, 1500, 200)
-        can_socket.send(struct.pack(CAN_FRAME_FORMAT, LEFT_COMMAND_ID, 8, command))
+        left_command = struct.pack("<BBhH2x", 9, 1, 1500, 200)
+        right_command = struct.pack("<BBhH2x", 10, 1, 1200, 200)
+        can_socket.send(
+            struct.pack(CAN_FRAME_FORMAT, LEFT_COMMAND_ID, 8, left_command)
+        )
+        can_socket.send(
+            struct.pack(CAN_FRAME_FORMAT, RIGHT_COMMAND_ID, 8, right_command)
+        )
 
-        ack_received = False
-        positive_feedback_received = False
-        deadline = time.monotonic() + 2.0
-        while time.monotonic() < deadline and not (
-            ack_received and positive_feedback_received
-        ):
+        ack_sequences = set()
+        positive_feedback_sequences = set()
+        response_frames = 0
+        legacy_response_ids = set()
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
             try:
                 can_id, dlc, data = struct.unpack(CAN_FRAME_FORMAT, can_socket.recv(16))
             except socket.timeout:
                 continue
+            if can_id in LEGACY_RESPONSE_IDS:
+                legacy_response_ids.add(can_id)
+            if can_id in RESPONSE_IDS:
+                response_frames += 1
             if can_id == LEFT_ACK_ID and dlc == 8:
-                ack_received = data[0] == 9 and data[1] == 0
+                if data[0] == 9 and data[1] == 0:
+                    ack_sequences.add(data[0])
+            if can_id == RIGHT_ACK_ID and dlc == 8:
+                if data[0] == 10 and data[1] == 0:
+                    ack_sequences.add(data[0])
             if can_id == LEFT_FEEDBACK_ID and dlc == 8 and data[0] == 9:
-                positive_feedback_received = struct.unpack("<h", data[2:4])[0] > 0
+                if struct.unpack("<h", data[2:4])[0] > 0:
+                    positive_feedback_sequences.add(data[0])
+            if can_id == RIGHT_FEEDBACK_ID and dlc == 8 and data[0] == 10:
+                if struct.unpack("<h", data[2:4])[0] > 0:
+                    positive_feedback_sequences.add(data[0])
 
-        self.assertTrue(ack_received)
-        self.assertTrue(positive_feedback_received)
+        self.assertEqual(ack_sequences, {9, 10})
+        self.assertEqual(positive_feedback_sequences, {9, 10})
+        self.assertGreaterEqual(response_frames, 4)
 
         watchdog_stopped = False
         deadline = time.monotonic() + 2.0
@@ -96,6 +120,8 @@ class TestVirtualMotorNode(unittest.TestCase):
                 can_id, dlc, data = struct.unpack(CAN_FRAME_FORMAT, can_socket.recv(16))
             except socket.timeout:
                 continue
+            if can_id in LEGACY_RESPONSE_IDS:
+                legacy_response_ids.add(can_id)
             if can_id == LEFT_FEEDBACK_ID and dlc == 8 and data[0] == 9:
                 velocity = struct.unpack("<h", data[2:4])[0]
                 watchdog_stopped = bool(data[1] & 0x02) and abs(velocity) < 50
@@ -112,6 +138,8 @@ class TestVirtualMotorNode(unittest.TestCase):
                 can_id, dlc, _ = struct.unpack(CAN_FRAME_FORMAT, can_socket.recv(16))
             except socket.timeout:
                 continue
+            if can_id in LEGACY_RESPONSE_IDS:
+                legacy_response_ids.add(can_id)
             error_frame_received = error_frame_received or bool(can_id & CAN_ERR_FLAG)
             malformed_feedback_received = malformed_feedback_received or (
                 can_id in FEEDBACK_IDS and dlc == 7
@@ -119,3 +147,4 @@ class TestVirtualMotorNode(unittest.TestCase):
 
         self.assertTrue(error_frame_received)
         self.assertTrue(malformed_feedback_received)
+        self.assertEqual(legacy_response_ids, set())
