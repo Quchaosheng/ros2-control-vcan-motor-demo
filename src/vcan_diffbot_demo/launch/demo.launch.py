@@ -1,5 +1,6 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, RegisterEventHandler
+from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
@@ -14,6 +15,7 @@ def generate_launch_description():
     feedback_delay_ms = LaunchConfiguration("feedback_delay_ms")
     malformed_feedback_every_n = LaunchConfiguration("malformed_feedback_every_n")
     error_frame_every_n = LaunchConfiguration("error_frame_every_n")
+    spawn_controllers = LaunchConfiguration("spawn_controllers")
 
     package_share = FindPackageShare("vcan_diffbot_demo")
     robot_description = {
@@ -89,6 +91,7 @@ def generate_launch_description():
             "20",
         ],
         output="screen",
+        condition=IfCondition(spawn_controllers),
     )
     diffbot_controller = Node(
         package="controller_manager",
@@ -101,6 +104,7 @@ def generate_launch_description():
             "20",
         ],
         output="screen",
+        condition=IfCondition(spawn_controllers),
     )
     start_diffbot_after_broadcaster = RegisterEventHandler(
         OnProcessExit(
@@ -116,6 +120,7 @@ def generate_launch_description():
         DeclareLaunchArgument("feedback_delay_ms", default_value="0"),
         DeclareLaunchArgument("malformed_feedback_every_n", default_value="0"),
         DeclareLaunchArgument("error_frame_every_n", default_value="0"),
+        DeclareLaunchArgument("spawn_controllers", default_value="true"),
     ]
     return LaunchDescription(
         arguments
