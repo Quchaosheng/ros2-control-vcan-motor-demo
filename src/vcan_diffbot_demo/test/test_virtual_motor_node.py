@@ -16,6 +16,12 @@ from vcan_test_utils import create_test_vcan
 CAN_FRAME_FORMAT = "=IB3x8s"
 CAN_ERR_FLAG = 0x20000000
 CAN_ERR_MASK = 0x1FFFFFFF
+LEFT_NODE_ID = 17
+RIGHT_NODE_ID = 23
+LEFT_COMMAND_ID = 0x100 + LEFT_NODE_ID
+LEFT_FEEDBACK_ID = 0x180 + LEFT_NODE_ID
+LEFT_ACK_ID = 0x280 + LEFT_NODE_ID
+FEEDBACK_IDS = (LEFT_FEEDBACK_ID, 0x180 + RIGHT_NODE_ID)
 
 
 @pytest.mark.launch_test
@@ -29,6 +35,8 @@ def generate_test_description():
         parameters=[
             {
                 "can_interface": can_interface,
+                "left_node_id": LEFT_NODE_ID,
+                "right_node_id": RIGHT_NODE_ID,
                 "encoder_counts_per_revolution": 4096,
                 "max_acceleration_rad_s2": 20.0,
                 "update_rate_hz": 100.0,
@@ -61,7 +69,7 @@ class TestVirtualMotorNode(unittest.TestCase):
         can_socket.settimeout(0.2)
 
         command = struct.pack("<BBhH2x", 9, 1, 1500, 200)
-        can_socket.send(struct.pack(CAN_FRAME_FORMAT, 0x101, 8, command))
+        can_socket.send(struct.pack(CAN_FRAME_FORMAT, LEFT_COMMAND_ID, 8, command))
 
         ack_received = False
         positive_feedback_received = False
@@ -73,9 +81,9 @@ class TestVirtualMotorNode(unittest.TestCase):
                 can_id, dlc, data = struct.unpack(CAN_FRAME_FORMAT, can_socket.recv(16))
             except socket.timeout:
                 continue
-            if can_id == 0x281 and dlc == 8:
+            if can_id == LEFT_ACK_ID and dlc == 8:
                 ack_received = data[0] == 9 and data[1] == 0
-            if can_id == 0x181 and dlc == 8 and data[0] == 9:
+            if can_id == LEFT_FEEDBACK_ID and dlc == 8 and data[0] == 9:
                 positive_feedback_received = struct.unpack("<h", data[2:4])[0] > 0
 
         self.assertTrue(ack_received)
@@ -88,7 +96,7 @@ class TestVirtualMotorNode(unittest.TestCase):
                 can_id, dlc, data = struct.unpack(CAN_FRAME_FORMAT, can_socket.recv(16))
             except socket.timeout:
                 continue
-            if can_id == 0x181 and dlc == 8 and data[0] == 9:
+            if can_id == LEFT_FEEDBACK_ID and dlc == 8 and data[0] == 9:
                 velocity = struct.unpack("<h", data[2:4])[0]
                 watchdog_stopped = bool(data[1] & 0x02) and abs(velocity) < 50
 
@@ -106,7 +114,7 @@ class TestVirtualMotorNode(unittest.TestCase):
                 continue
             error_frame_received = error_frame_received or bool(can_id & CAN_ERR_FLAG)
             malformed_feedback_received = malformed_feedback_received or (
-                can_id in (0x181, 0x182) and dlc == 7
+                can_id in FEEDBACK_IDS and dlc == 7
             )
 
         self.assertTrue(error_frame_received)
