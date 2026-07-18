@@ -65,6 +65,9 @@ if(BUILD_TESTING)
   target_include_directories(test_can_filters PRIVATE include)
   ament_target_dependencies(test_can_filters ros2_socketcan)
 
+  ament_add_gtest(test_can_error_policy test/test_can_error_policy.cpp)
+  target_include_directories(test_can_error_policy PRIVATE include)
+
   ament_add_pytest_test(test_urdf_xacro test/test_urdf_xacro.py)
   ament_add_pytest_test(test_vcan_test_utils test/test_vcan_test_utils.py)
 
@@ -77,6 +80,7 @@ if(BUILD_TESTING)
   add_launch_test(test/test_demo_launch.py TIMEOUT 90)
   add_launch_test(test/test_feedback_timeout_launch.py TIMEOUT 60)
   add_launch_test(test/test_ack_timeout_launch.py TIMEOUT 60)
+  add_launch_test(test/test_can_busoff_launch.py TIMEOUT 60)
   add_launch_test(test/test_invalid_fault_selector_launch.py TIMEOUT 30)
 endif()
 
