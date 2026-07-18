@@ -41,6 +41,7 @@ private:
   bool send_command(
     std::size_t index, bool enabled, double velocity_rad_s, bool track_ack = true);
   bool send_safe_stop();
+  bool attempt_fault_safe_stop();
 
   rclcpp::Logger logger_{rclcpp::get_logger("vcan_diffbot_demo.CanMotorHardware")};
   std::string can_interface_;
@@ -55,6 +56,7 @@ private:
   std::array<uint8_t, 2> sequences_{};
   std::chrono::milliseconds ack_timeout_{0};
   HardwareHealth health_;
+  bool fatal_fault_latched_{false};
   std::string last_can_error_;
   std::string stop_reason_;
 

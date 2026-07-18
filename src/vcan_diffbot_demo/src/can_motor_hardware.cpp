@@ -156,6 +156,7 @@ hardware_interface::CallbackReturn CanMotorHardware::on_activate(
     if (!send_safe_stop()) {
       throw std::runtime_error("failed to send activation safe stop");
     }
+    fatal_fault_latched_ = false;
   } catch (const std::exception & error) {
     RCLCPP_ERROR(logger_, "Failed to activate CAN hardware on %s: %s",
       can_interface_.c_str(), error.what());
@@ -172,7 +173,7 @@ hardware_interface::CallbackReturn CanMotorHardware::on_deactivate(
   const rclcpp_lifecycle::State &)
 {
   commands_.fill(0.0);
-  const bool stopped = send_safe_stop();
+  const bool stopped = health_.stop_sent() || send_safe_stop();
   receiver_.reset();
   sender_.reset();
   return stopped ? hardware_interface::CallbackReturn::SUCCESS :
@@ -182,6 +183,9 @@ hardware_interface::CallbackReturn CanMotorHardware::on_deactivate(
 hardware_interface::return_type CanMotorHardware::read(
   const rclcpp::Time &, const rclcpp::Duration &)
 {
+  if (fatal_fault_latched_) {
+    return hardware_interface::return_type::ERROR;
+  }
   if (!receiver_) {
     return hardware_interface::return_type::ERROR;
   }
@@ -212,9 +216,9 @@ hardware_interface::return_type CanMotorHardware::read(
         stop_reason_ = (error_mask & CAN_ERR_BUSOFF) != 0U ?
           "can_bus_off" : "can_tx_timeout";
         RCLCPP_ERROR(logger_, "Fatal SocketCAN error: %s", last_can_error_.c_str());
-        if (!health_.stop_sent() && send_safe_stop()) {
-          health_.mark_stop_sent();
-        }
+        commands_.fill(0.0);
+        fatal_fault_latched_ = true;
+        attempt_fault_safe_stop();
         return hardware_interface::return_type::ERROR;
       }
       if (can_id.frame_type() != drivers::socketcan::FrameType::DATA) {
@@ -258,7 +262,8 @@ hardware_interface::return_type CanMotorHardware::read(
     }
   } catch (const std::exception & error) {
     RCLCPP_ERROR(logger_, "SocketCAN receive failed: %s", error.what());
-    send_safe_stop();
+    commands_.fill(0.0);
+    attempt_fault_safe_stop();
     return hardware_interface::return_type::ERROR;
   }
 
@@ -281,9 +286,8 @@ hardware_interface::return_type CanMotorHardware::read(
   }
 
   if (fault) {
-    if (!health_.stop_sent() && send_safe_stop()) {
-      health_.mark_stop_sent();
-    }
+    commands_.fill(0.0);
+    attempt_fault_safe_stop();
     return hardware_interface::return_type::ERROR;
   }
   return hardware_interface::return_type::OK;
@@ -292,13 +296,17 @@ hardware_interface::return_type CanMotorHardware::read(
 hardware_interface::return_type CanMotorHardware::write(
   const rclcpp::Time &, const rclcpp::Duration &)
 {
+  if (fatal_fault_latched_) {
+    return hardware_interface::return_type::ERROR;
+  }
   if (!sender_) {
     return hardware_interface::return_type::ERROR;
   }
 
   for (std::size_t index = 0; index < commands_.size(); ++index) {
     if (!send_command(index, true, commands_[index])) {
-      send_safe_stop();
+      commands_.fill(0.0);
+      attempt_fault_safe_stop();
       return hardware_interface::return_type::ERROR;
     }
   }
@@ -348,6 +356,21 @@ bool CanMotorHardware::send_safe_stop()
     success = send_command(index, false, 0.0, false) && success;
   }
   return success;
+}
+
+bool CanMotorHardware::attempt_fault_safe_stop()
+{
+  if (health_.stop_sent()) {
+    return true;
+  }
+
+  health_.mark_stop_sent();
+  if (send_safe_stop()) {
+    return true;
+  }
+
+  RCLCPP_ERROR(logger_, "Failed to send complete safe stop");
+  return false;
 }
 
 }  // namespace vcan_diffbot_demo
