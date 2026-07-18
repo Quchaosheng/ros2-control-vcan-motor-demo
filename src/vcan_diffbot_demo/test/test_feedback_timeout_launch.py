@@ -45,7 +45,7 @@ class TestFeedbackTimeout(unittest.TestCase):
         can_socket.bind((can_interface,))
         can_socket.settimeout(0.2)
 
-        proc_output.assertWaitFor("Feedback timeout for motor node", timeout=10.0)
+        proc_output.assertWaitFor("Feedback timeout for motor node 2", timeout=10.0)
 
         disabled_commands = 0
         deadline = time.monotonic() + 1.0
