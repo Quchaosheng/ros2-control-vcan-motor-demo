@@ -120,6 +120,10 @@ All frames use classic 11-bit CAN identifiers and little-endian fields.
 Command flags bit 0 enables the motor. Feedback status bits report enabled, watchdog-stopped, and
 protocol-fault states. See `can_protocol.hpp` for the exact byte offsets.
 
+The hardware tracks each command until a matching successful ACK arrives. A rejected, unexpected,
+or missing ACK faults the hardware and sends disabled zero commands to both motors. The ACK
+deadline uses the configured command watchdog duration.
+
 ## Fault Injection
 
 Faults are disabled by default. Every-N parameters are deterministic so tests are repeatable; zero
@@ -158,6 +162,10 @@ ros2 launch vcan_diffbot_demo demo.launch.py \
 The suite covers byte-level protocol encoding, motor dynamics, xacro expansion, plugin loading,
 raw CAN ACK/feedback/watchdog behavior, malformed and ERROR frames, the full diff-drive loop, and
 feedback-timeout stopping.
+
+Launch tests create process-specific virtual CAN interfaces instead of sharing `vcan0`. Creating
+an interface requires root or passwordless non-interactive `sudo`; the tests fail promptly when
+that permission is unavailable and delete only interfaces they created.
 
 ```bash
 bash src/vcan_diffbot_demo/scripts/setup_vcan.sh
