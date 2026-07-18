@@ -29,7 +29,7 @@ def generate_test_description():
         PythonLaunchDescriptionSource(launch_file),
         launch_arguments={
             "can_interface": can_interface,
-            "drop_feedback_every_n": "2",
+            "drop_command_every_n": "1",
             "spawn_controllers": "false",
         }.items(),
     )
@@ -38,18 +38,18 @@ def generate_test_description():
     }
 
 
-class TestFeedbackTimeout(unittest.TestCase):
-    def test_timeout_sends_disabled_zero_commands(self, proc_output, can_interface):
+class TestAckTimeout(unittest.TestCase):
+    def test_missing_ack_faults_and_stops_hardware(self, proc_output, can_interface):
         can_socket = socket.socket(socket.PF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
         self.addCleanup(can_socket.close)
         can_socket.bind((can_interface,))
         can_socket.settimeout(0.2)
 
-        proc_output.assertWaitFor("Feedback timeout for motor node", timeout=10.0)
+        proc_output.assertWaitFor("ACK timeout for motor node", timeout=10.0)
 
-        disabled_commands = 0
-        deadline = time.monotonic() + 1.0
-        while time.monotonic() < deadline:
+        safe_stop_received = False
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline and not safe_stop_received:
             try:
                 can_id, dlc, data = struct.unpack(CAN_FRAME_FORMAT, can_socket.recv(16))
             except socket.timeout:
@@ -57,8 +57,6 @@ class TestFeedbackTimeout(unittest.TestCase):
             if can_id not in (0x101, 0x102) or dlc != 8:
                 continue
             sequence, flags, velocity = struct.unpack("<BBh", data[:4])
-            if sequence > 5 and flags == 0 and velocity == 0:
-                disabled_commands += 1
+            safe_stop_received = sequence > 2 and flags == 0 and velocity == 0
 
-        self.assertGreaterEqual(disabled_commands, 2)
-        self.assertLessEqual(disabled_commands, 4)
+        self.assertTrue(safe_stop_received)

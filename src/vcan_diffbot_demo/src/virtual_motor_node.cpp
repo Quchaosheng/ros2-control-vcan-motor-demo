@@ -19,6 +19,7 @@
 #include "ros2_socketcan/socket_can_id.hpp"
 #include "ros2_socketcan/socket_can_receiver.hpp"
 #include "ros2_socketcan/socket_can_sender.hpp"
+#include "vcan_diffbot_demo/can_filters.hpp"
 #include "vcan_diffbot_demo/can_protocol.hpp"
 #include "vcan_diffbot_demo/motor_state.hpp"
 
@@ -79,6 +80,7 @@ public:
 
     sender_ = std::make_unique<drivers::socketcan::SocketCanSender>(can_interface_);
     receiver_ = std::make_unique<drivers::socketcan::SocketCanReceiver>(can_interface_);
+    receiver_->SetCanFilters(virtual_motor_can_filters());
 
     const auto now = std::chrono::steady_clock::now();
     last_command_.fill(now);

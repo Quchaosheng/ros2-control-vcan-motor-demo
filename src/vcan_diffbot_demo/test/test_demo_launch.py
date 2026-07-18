@@ -1,5 +1,4 @@
 import os
-import subprocess
 import time
 import unittest
 
@@ -16,24 +15,19 @@ import pytest
 import rclpy
 from sensor_msgs.msg import JointState
 
-
-def ensure_vcan():
-    subprocess.run(["sudo", "modprobe", "vcan"], check=False)
-    if subprocess.run(["ip", "link", "show", "vcan0"], check=False).returncode != 0:
-        subprocess.run(
-            ["sudo", "ip", "link", "add", "dev", "vcan0", "type", "vcan"],
-            check=True,
-        )
-    subprocess.run(["sudo", "ip", "link", "set", "up", "vcan0"], check=True)
+from vcan_test_utils import create_test_vcan
 
 
 @pytest.mark.launch_test
 def generate_test_description():
-    ensure_vcan()
+    can_interface = create_test_vcan()
     launch_file = os.path.join(
         get_package_share_directory("vcan_diffbot_demo"), "launch", "demo.launch.py"
     )
-    demo = IncludeLaunchDescription(PythonLaunchDescriptionSource(launch_file))
+    demo = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(launch_file),
+        launch_arguments={"can_interface": can_interface}.items(),
+    )
     return launch.LaunchDescription([demo, launch_testing.actions.ReadyToTest()])
 
 
