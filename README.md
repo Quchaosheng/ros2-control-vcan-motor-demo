@@ -1,40 +1,54 @@
 # ros2-control-vcan-motor-demo
 
-A ROS 2 Humble differential-drive demo that connects `diff_drive_controller` to two virtual
-motors through SocketCAN `vcan0`. It includes a real `hardware_interface::SystemInterface`, ACK and
-encoder feedback, watchdog stopping, and deterministic CAN fault injection.
+![ROS 2 Humble](https://img.shields.io/badge/ROS_2-Humble-22314E?logo=ros&logoColor=white)
+![Ubuntu 22.04](https://img.shields.io/badge/Ubuntu-22.04-E95420?logo=ubuntu&logoColor=white)
+![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)
+![License Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-2C8EBB)
 
-## Architecture
+A ROS 2 Humble differential-drive demo that runs a `ros2_control` hardware interface against two
+virtual motors on SocketCAN. It is small enough to read end to end, but still covers the parts that
+matter in a real driver: command and state interfaces, ACK tracking, encoder feedback, watchdogs,
+safe stopping, receive filters, and deterministic CAN faults.
 
-```text
-/diffbot_base_controller/cmd_vel
-                 |
-       diff_drive_controller
-                 |
-       wheel velocity commands
-                 |
-       CanMotorHardware::write()
-                 |
-              vcan0
-                 |
-         virtual_motor_node
-                 |
-       ACK + encoder feedback
-                 |
-        CanMotorHardware::read()
-                 |
-        /joint_states + /odom
+## What is included
+
+| Component | Role |
+| --- | --- |
+| `diff_drive_controller` | Converts robot velocity commands into left and right wheel commands |
+| `CanMotorHardware` | Implements `hardware_interface::SystemInterface` over SocketCAN |
+| `virtual_motor_node` | Simulates acceleration, encoder counts, ACKs, and watchdog stopping |
+| `joint_state_broadcaster` | Publishes wheel position and velocity state |
+| Fault injection | Adds repeatable loss, delay, malformed frames, and CAN error frames |
+| Launch tests | Exercise the protocol and complete control loop on isolated `vcan` interfaces |
+
+## Data flow
+
+```mermaid
+flowchart LR
+    CMD["/diffbot_base_controller/cmd_vel"]
+    CTRL["diff_drive_controller"]
+    WRITE["CanMotorHardware::write()"]
+    CAN["SocketCAN vcan0"]
+    MOTOR["virtual_motor_node"]
+    READ["CanMotorHardware::read()"]
+    STATE["/joint_states and /odom"]
+
+    CMD --> CTRL --> WRITE
+    WRITE -->|"velocity commands 0x101 / 0x102"| CAN
+    CAN --> MOTOR
+    MOTOR -->|"ACK and encoder feedback"| CAN
+    CAN --> READ --> STATE
 ```
 
-Both CAN endpoints use the `ros2_socketcan` C++ sender and receiver APIs directly. There is no ROS
-topic bridge between `ros2_control` and SocketCAN.
+Both endpoints use the `ros2_socketcan` C++ sender and receiver APIs directly. ROS topics are not
+used as a bridge for CAN traffic.
 
-## Requirements
+## Quick start
 
-- WSL2 Ubuntu 22.04
-- ROS 2 Humble installed at `/opt/ros/humble`
+### 1. Install dependencies
 
-Install the binary dependencies inside WSL:
+The tested environment is WSL2 with Ubuntu 22.04 and ROS 2 Humble installed at
+`/opt/ros/humble`.
 
 ```bash
 sudo apt-get update
@@ -50,9 +64,9 @@ sudo apt-get install -y \
   can-utils
 ```
 
-## Build
+### 2. Build
 
-Run from the repository root inside WSL:
+Run these commands from the repository root inside WSL:
 
 ```bash
 source /opt/ros/humble/setup.bash
@@ -60,15 +74,16 @@ colcon build --packages-select vcan_diffbot_demo
 source install/setup.bash
 ```
 
-## Run
-
-Create `vcan0`. The command is idempotent, but must be run again if the WSL VM restarts:
+### 3. Create the virtual CAN bus
 
 ```bash
 bash src/vcan_diffbot_demo/scripts/setup_vcan.sh
 ```
 
-Start the complete stack:
+The script creates `vcan0` if needed and brings it up. Run it again after the WSL virtual machine
+restarts.
+
+### 4. Launch the stack
 
 ```bash
 source /opt/ros/humble/setup.bash
@@ -76,7 +91,9 @@ source install/setup.bash
 ros2 launch vcan_diffbot_demo demo.launch.py
 ```
 
-In another WSL terminal, drive forward with a small turn:
+### 5. Drive the robot
+
+Open another WSL terminal:
 
 ```bash
 source /opt/ros/humble/setup.bash
@@ -87,10 +104,12 @@ ros2 topic pub --rate 10 \
   "{twist: {linear: {x: 0.3}, angular: {z: 0.2}}}"
 ```
 
-Stop the publisher with `Ctrl+C`. The controller command timeout and motor watchdog bring both
-wheels back to zero.
+Stop the publisher with `Ctrl+C`. The controller timeout and motor watchdog return both wheel
+velocities to zero.
 
-Inspect ROS state:
+## Inspect the demo
+
+Check controller and robot state:
 
 ```bash
 ros2 control list_controllers
@@ -98,36 +117,59 @@ ros2 topic echo /joint_states
 ros2 topic echo /diffbot_base_controller/odom
 ```
 
-Inspect the CAN bus:
+Watch raw CAN traffic:
 
 ```bash
 candump -L vcan0
 ```
 
-Normal traffic contains command IDs `101`/`102`, feedback IDs `181`/`182`, and ACK IDs
-`281`/`282`.
+Normal traffic contains the following identifiers:
 
-## CAN Protocol
+| Direction | Left | Right | Payload |
+| --- | ---: | ---: | --- |
+| Hardware to motor | `0x101` | `0x102` | Velocity command |
+| Motor to hardware | `0x181` | `0x182` | Encoder feedback |
+| Motor to hardware | `0x281` | `0x282` | Command ACK |
 
-All frames use classic 11-bit CAN identifiers and little-endian fields.
+## CAN protocol
 
-| Frame | IDs | Bytes |
-| --- | --- | --- |
-| Velocity command | `0x101`, `0x102` | sequence, flags, velocity in mrad/s, watchdog in ms, reserved |
-| Encoder feedback | `0x181`, `0x182` | sequence, status, velocity in mrad/s, signed encoder count |
-| ACK | `0x281`, `0x282` | sequence, result, reserved |
+All frames use classic 11-bit CAN identifiers, DLC 8, and little-endian multibyte fields.
 
-Command flags bit 0 enables the motor. Feedback status bits report enabled, watchdog-stopped, and
-protocol-fault states. See `can_protocol.hpp` for the exact byte offsets.
+### Velocity command
 
-The hardware tracks each command until a matching successful ACK arrives. A rejected, unexpected,
-or missing ACK faults the hardware and sends disabled zero commands to both motors. The ACK
-deadline uses the configured command watchdog duration.
+| Byte | Field |
+| ---: | --- |
+| 0 | Sequence number |
+| 1 | Flags, bit 0 enables the motor |
+| 2-3 | Target velocity in signed milliradians per second |
+| 4-5 | Command watchdog in milliseconds |
+| 6-7 | Reserved, must be zero |
 
-## Fault Injection
+### Encoder feedback
 
-Faults are disabled by default. Every-N parameters are deterministic so tests are repeatable; zero
-disables a fault.
+| Byte | Field |
+| ---: | --- |
+| 0 | Last accepted command sequence |
+| 1 | Status bits: enabled, watchdog stopped, protocol fault |
+| 2-3 | Measured velocity in signed milliradians per second |
+| 4-7 | Signed encoder count |
+
+### ACK
+
+| Byte | Field |
+| ---: | --- |
+| 0 | Command sequence |
+| 1 | Result: `0` accepted, `1` invalid DLC, `2` invalid reserved bytes |
+| 2-7 | Reserved, must be zero |
+
+The hardware tracks commands until matching ACKs arrive. A rejected, unexpected, or missing ACK
+faults the hardware and sends disabled zero commands to both motors. Feedback loss on either motor
+uses the same safe-stop path.
+
+## Fault injection
+
+Faults are disabled by default. Every-N settings are deterministic, which keeps failures
+repeatable during tests.
 
 ```bash
 ros2 launch vcan_diffbot_demo demo.launch.py \
@@ -138,18 +180,16 @@ ros2 launch vcan_diffbot_demo demo.launch.py \
   error_frame_every_n:=13
 ```
 
-Available controls:
-
-| Argument | Behavior |
+| Launch argument | Behavior |
 | --- | --- |
-| `drop_command_every_n` | Drops the Nth motor command and its ACK |
-| `drop_feedback_every_n` | Drops the Nth encoder feedback frame |
-| `feedback_delay_ms` | Delays feedback without blocking the node timer |
-| `malformed_feedback_every_n` | Sends feedback with DLC 7 instead of 8 |
-| `error_frame_every_n` | Adds a SocketCAN ERROR frame |
-| `spawn_controllers` | Set false for hardware-only diagnostics |
+| `drop_command_every_n` | Drops every Nth command and its ACK |
+| `drop_feedback_every_n` | Drops every Nth encoder feedback frame |
+| `feedback_delay_ms` | Queues feedback until the configured delay expires |
+| `malformed_feedback_every_n` | Sends every Nth feedback frame with DLC 7 |
+| `error_frame_every_n` | Adds a SocketCAN error frame every Nth feedback frame |
+| `spawn_controllers` | Set to `false` for hardware-only diagnostics |
 
-Dropping all feedback demonstrates hardware timeout and automatic stopping:
+For example, this command drops all feedback and exercises the hardware timeout:
 
 ```bash
 ros2 launch vcan_diffbot_demo demo.launch.py \
@@ -159,19 +199,67 @@ ros2 launch vcan_diffbot_demo demo.launch.py \
 
 ## Tests
 
-The suite covers byte-level protocol encoding, motor dynamics, xacro expansion, plugin loading,
-raw CAN ACK/feedback/watchdog behavior, malformed and ERROR frames, the full diff-drive loop, and
-feedback-timeout stopping.
-
-Launch tests create process-specific virtual CAN interfaces instead of sharing `vcan0`. Creating
-an interface requires root or passwordless non-interactive `sudo`; the tests fail promptly when
-that permission is unavailable and delete only interfaces they created.
-
 ```bash
-bash src/vcan_diffbot_demo/scripts/setup_vcan.sh
 source /opt/ros/humble/setup.bash
 colcon build --packages-select vcan_diffbot_demo
 source install/setup.bash
 colcon test --packages-select vcan_diffbot_demo
 colcon test-result --verbose
 ```
+
+The suite currently contains 42 tests covering:
+
+- byte-level protocol encoding and validation;
+- motor acceleration, encoder integration, and watchdog behavior;
+- plugin loading, lifecycle safety, ACK health, and CAN filters;
+- raw CAN faults and the complete differential-drive control loop;
+- one-sided feedback loss and bounded safe-stop traffic.
+
+Launch tests create process-specific virtual CAN interfaces instead of sharing `vcan0`. Creating
+an interface requires root or passwordless non-interactive `sudo`. Each test deletes only the
+interface it created.
+
+## Project layout
+
+```text
+src/vcan_diffbot_demo/
+|-- config/                  controller and virtual motor parameters
+|-- include/                 CAN protocol, filters, health tracking, hardware interface
+|-- launch/demo.launch.py    complete demo launch
+|-- scripts/setup_vcan.sh    idempotent vcan setup
+|-- src/                     hardware plugin and virtual motor node
+|-- test/                    unit and SocketCAN launch tests
+`-- urdf/                    DiffBot model and ros2_control description
+```
+
+## Troubleshooting
+
+### `vcan0` does not exist
+
+Recreate it after restarting WSL:
+
+```bash
+bash src/vcan_diffbot_demo/scripts/setup_vcan.sh
+```
+
+### Tests cannot create an interface
+
+Run the tests as root or configure passwordless access for the required `ip link` commands. Test
+setup uses `sudo -n`, so it exits instead of waiting for a password prompt.
+
+### The hardware reports an ACK or feedback timeout
+
+Check that only one demo stack is using `vcan0`, then inspect the bus:
+
+```bash
+candump -L vcan0
+```
+
+You should see command, ACK, and feedback frames for both node IDs.
+
+## References
+
+- [ros2_control demos, example 2](https://github.com/ros-controls/ros2_control_demos/tree/master/example_2)
+- [ros2_control](https://github.com/ros-controls/ros2_control)
+- [ros2_controllers](https://github.com/ros-controls/ros2_controllers)
+- [ros2_socketcan](https://github.com/autowarefoundation/ros2_socketcan)
