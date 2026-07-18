@@ -16,6 +16,7 @@
 #include "pluginlib/class_list_macros.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "ros2_socketcan/socket_can_id.hpp"
+#include "vcan_diffbot_demo/can_filters.hpp"
 #include "vcan_diffbot_demo/can_protocol.hpp"
 
 namespace vcan_diffbot_demo
@@ -99,6 +100,7 @@ hardware_interface::CallbackReturn CanMotorHardware::on_init(
       throw std::invalid_argument("command_watchdog_ms is too large");
     }
     command_watchdog_ms_ = static_cast<uint16_t>(watchdog);
+    ack_timeout_ = std::chrono::milliseconds(command_watchdog_ms_);
 
     feedback_timeout_ = std::chrono::milliseconds(parse_positive(
         info_.hardware_parameters.at("feedback_timeout_ms"), "feedback_timeout_ms"));
@@ -111,7 +113,6 @@ hardware_interface::CallbackReturn CanMotorHardware::on_init(
   positions_.fill(0.0);
   velocities_.fill(0.0);
   sequences_.fill(0U);
-  last_ack_sequences_.fill(0U);
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -142,13 +143,16 @@ std::vector<hardware_interface::CommandInterface> CanMotorHardware::export_comma
 hardware_interface::CallbackReturn CanMotorHardware::on_activate(
   const rclcpp_lifecycle::State &)
 {
+  commands_.fill(0.0);
   try {
     sender_ = std::make_unique<drivers::socketcan::SocketCanSender>(can_interface_);
     receiver_ = std::make_unique<drivers::socketcan::SocketCanReceiver>(can_interface_);
+    receiver_->SetCanFilters(hardware_can_filters(node_ids_));
     const auto now = std::chrono::steady_clock::now();
-    last_feedback_.fill(now);
-    timeout_stop_sent_ = false;
-    send_safe_stop();
+    health_.reset(now);
+    if (!send_safe_stop()) {
+      throw std::runtime_error("failed to send activation safe stop");
+    }
   } catch (const std::exception & error) {
     RCLCPP_ERROR(logger_, "Failed to activate CAN hardware on %s: %s",
       can_interface_.c_str(), error.what());
@@ -164,10 +168,12 @@ hardware_interface::CallbackReturn CanMotorHardware::on_activate(
 hardware_interface::CallbackReturn CanMotorHardware::on_deactivate(
   const rclcpp_lifecycle::State &)
 {
-  send_safe_stop();
+  commands_.fill(0.0);
+  const bool stopped = send_safe_stop();
   receiver_.reset();
   sender_.reset();
-  return hardware_interface::CallbackReturn::SUCCESS;
+  return stopped ? hardware_interface::CallbackReturn::SUCCESS :
+         hardware_interface::CallbackReturn::ERROR;
 }
 
 hardware_interface::return_type CanMotorHardware::read(
@@ -205,8 +211,7 @@ hardware_interface::return_type CanMotorHardware::read(
           velocities_[index] = static_cast<double>(feedback->velocity_mrad_s) / 1000.0;
           positions_[index] = static_cast<double>(feedback->encoder_count) * kTwoPi /
             static_cast<double>(encoder_counts_per_revolution_);
-          last_feedback_[index] = std::chrono::steady_clock::now();
-          timeout_stop_sent_ = false;
+          health_.feedback_received(index, std::chrono::steady_clock::now());
           if ((feedback->status & 0x04U) != 0U) {
             RCLCPP_WARN(logger_, "Motor node %u reports a protocol fault", node_ids_[index]);
           }
@@ -219,10 +224,13 @@ hardware_interface::return_type CanMotorHardware::read(
             RCLCPP_WARN(logger_, "Ignoring malformed ACK for node %u", node_ids_[index]);
             break;
           }
-          last_ack_sequences_[index] = ack->sequence;
-          if (ack->result != 0U) {
+          const auto ack_status = health_.ack_received(index, ack->sequence, ack->result);
+          if (ack_status == AckStatus::REJECTED) {
             RCLCPP_WARN(logger_, "Motor node %u rejected command %u with result %u",
               node_ids_[index], ack->sequence, ack->result);
+          } else if (ack_status == AckStatus::UNEXPECTED) {
+            RCLCPP_WARN(logger_, "Motor node %u returned unexpected ACK sequence %u",
+              node_ids_[index], ack->sequence);
           }
           break;
         }
@@ -235,15 +243,28 @@ hardware_interface::return_type CanMotorHardware::read(
   }
 
   const auto now = std::chrono::steady_clock::now();
-  for (std::size_t index = 0; index < last_feedback_.size(); ++index) {
-    if (now - last_feedback_[index] > feedback_timeout_) {
-      if (!timeout_stop_sent_) {
+  health_.recover_if_healthy(now, feedback_timeout_, ack_timeout_);
+  bool fault = health_.ack_fault();
+  for (std::size_t index = 0; index < node_ids_.size(); ++index) {
+    if (health_.feedback_timed_out(index, now, feedback_timeout_)) {
+      fault = true;
+      if (!health_.stop_sent()) {
         RCLCPP_ERROR(logger_, "Feedback timeout for motor node %u", node_ids_[index]);
-        send_safe_stop();
-        timeout_stop_sent_ = true;
       }
-      return hardware_interface::return_type::ERROR;
     }
+    if (health_.ack_timed_out(index, now, ack_timeout_)) {
+      fault = true;
+      if (!health_.stop_sent()) {
+        RCLCPP_ERROR(logger_, "ACK timeout for motor node %u", node_ids_[index]);
+      }
+    }
+  }
+
+  if (fault) {
+    if (!health_.stop_sent() && send_safe_stop()) {
+      health_.mark_stop_sent();
+    }
+    return hardware_interface::return_type::ERROR;
   }
   return hardware_interface::return_type::OK;
 }
@@ -265,7 +286,8 @@ hardware_interface::return_type CanMotorHardware::write(
 }
 
 bool CanMotorHardware::send_command(
-  const std::size_t index, const bool enabled, const double velocity_rad_s)
+  const std::size_t index, const bool enabled, const double velocity_rad_s,
+  const bool track_ack)
 {
   if (!sender_ || index >= node_ids_.size()) {
     return false;
@@ -283,6 +305,11 @@ bool CanMotorHardware::send_command(
       protocol::command_id(node_ids_[index]), 0U,
       drivers::socketcan::FrameType::DATA, drivers::socketcan::StandardFrame);
     sender_->send(data, can_id, kSendTimeout);
+    if (track_ack) {
+      health_.command_sent(index, sequences_[index], std::chrono::steady_clock::now());
+    } else {
+      health_.safe_stop_sent(index, sequences_[index]);
+    }
     return true;
   } catch (const std::exception & error) {
     RCLCPP_ERROR(logger_, "Failed to send command to motor node %u: %s",
@@ -291,14 +318,16 @@ bool CanMotorHardware::send_command(
   }
 }
 
-void CanMotorHardware::send_safe_stop()
+bool CanMotorHardware::send_safe_stop()
 {
   if (!sender_) {
-    return;
+    return false;
   }
+  bool success = true;
   for (std::size_t index = 0; index < node_ids_.size(); ++index) {
-    (void)send_command(index, false, 0.0);
+    success = send_command(index, false, 0.0, false) && success;
   }
+  return success;
 }
 
 }  // namespace vcan_diffbot_demo
