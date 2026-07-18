@@ -25,6 +25,7 @@ namespace
 
 constexpr double kTwoPi = 6.28318530717958647692;
 constexpr auto kSendTimeout = std::chrono::milliseconds(1);
+constexpr auto kReceivePollTimeout = std::chrono::microseconds(50);
 
 long parse_positive(const std::string & value, const std::string & name)
 {
@@ -181,7 +182,7 @@ hardware_interface::return_type CanMotorHardware::read(
       protocol::FrameData data{};
       drivers::socketcan::CanId can_id;
       try {
-        can_id = receiver_->receive(data.data(), std::chrono::nanoseconds::zero());
+        can_id = receiver_->receive(data.data(), kReceivePollTimeout);
       } catch (const drivers::socketcan::SocketCanTimeout &) {
         break;
       }
