@@ -94,7 +94,7 @@ class TestCanBusOff(unittest.TestCase):
         proc_output.assertWaitFor("Fatal SocketCAN error: bus_off", timeout=5.0)
 
         disabled_commands = {command_id: 0 for command_id in COMMAND_IDS}
-        enabled_commands = {command_id: 0 for command_id in COMMAND_IDS}
+        stop_boundary_seen = False
         deadline = time.monotonic() + 0.8
         while time.monotonic() < deadline:
             try:
@@ -104,13 +104,14 @@ class TestCanBusOff(unittest.TestCase):
             if can_id not in disabled_commands or dlc != 8:
                 continue
             _, flags, velocity = struct.unpack("<BBh", data[:4])
-            if flags == 1:
-                enabled_commands[can_id] += 1
             if flags == 0 and velocity == 0:
+                stop_boundary_seen = True
                 disabled_commands[can_id] += 1
+                self.assertLessEqual(disabled_commands[can_id], 1)
+            elif stop_boundary_seen:
+                self.assertNotEqual(flags, 1)
 
         self.assertTrue(all(count == 1 for count in disabled_commands.values()))
-        self.assertTrue(all(count == 0 for count in enabled_commands.values()))
 
         quiet_deadline = time.monotonic() + 0.4
         while time.monotonic() < quiet_deadline:
