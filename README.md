@@ -4,6 +4,7 @@
 ![Ubuntu 22.04](https://img.shields.io/badge/Ubuntu-22.04-E95420?logo=ubuntu&logoColor=white)
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)
 ![License Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-2C8EBB)
+[![ROS 2 Humble CI](https://github.com/Quchaosheng/ros2-control-vcan-motor-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/Quchaosheng/ros2-control-vcan-motor-demo/actions/workflows/ci.yml)
 
 ![Bench manual view of the ros2_control vcan virtual motor demo](docs/assets/readme/hero-bench-manual.svg)
 
