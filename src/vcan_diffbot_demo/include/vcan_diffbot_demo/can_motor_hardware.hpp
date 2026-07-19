@@ -46,6 +46,7 @@ private:
   bool send_safe_stop();
   bool attempt_fault_safe_stop();
   void publish_diagnostics(bool force = false);
+  void flush_pending_diagnostics();
 
   rclcpp::Logger logger_{rclcpp::get_logger("vcan_diffbot_demo.CanMotorHardware")};
   std::string can_interface_;

@@ -9,6 +9,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -30,6 +31,8 @@ constexpr double kTwoPi = 6.28318530717958647692;
 constexpr auto kSendTimeout = std::chrono::milliseconds(1);
 constexpr auto kReceivePollTimeout = std::chrono::microseconds(50);
 constexpr auto kDiagnosticsPeriod = std::chrono::milliseconds(500);
+constexpr auto kDiagnosticsDrainTimeout = std::chrono::seconds(1);
+constexpr auto kDiagnosticsDrainSleep = std::chrono::milliseconds(1);
 
 void set_key(
   diagnostic_msgs::msg::DiagnosticStatus & status, const std::size_t index,
@@ -231,6 +234,7 @@ hardware_interface::CallbackReturn CanMotorHardware::on_deactivate(
   diagnostic_state_ = (fatal_fault_latched_ || stop_reason_ != "none") ?
     "safe_stop" : "inactive";
   publish_diagnostics(true);
+  flush_pending_diagnostics();
   return stopped ? hardware_interface::CallbackReturn::SUCCESS :
          hardware_interface::CallbackReturn::ERROR;
 }
@@ -548,6 +552,20 @@ void CanMotorHardware::publish_diagnostics(const bool force)
   last_diagnostics_publish_ = now;
   diagnostics_published_ = true;
   diagnostics_pending_ = false;
+}
+
+void CanMotorHardware::flush_pending_diagnostics()
+{
+  const auto deadline = std::chrono::steady_clock::now() + kDiagnosticsDrainTimeout;
+  while (diagnostics_pending_ && std::chrono::steady_clock::now() < deadline) {
+    publish_diagnostics(true);
+    if (diagnostics_pending_) {
+      std::this_thread::sleep_for(kDiagnosticsDrainSleep);
+    }
+  }
+  if (diagnostics_pending_) {
+    RCLCPP_ERROR(logger_, "Timed out publishing pending diagnostics during deactivation");
+  }
 }
 
 }  // namespace vcan_diffbot_demo
