@@ -66,6 +66,7 @@ private:
   std::string diagnostic_state_{"inactive"};
   HardwareHealth::TimePoint last_diagnostics_publish_{};
   bool diagnostics_published_{false};
+  bool diagnostics_pending_{false};
 
   std::unique_ptr<drivers::socketcan::SocketCanSender> sender_;
   std::unique_ptr<drivers::socketcan::SocketCanReceiver> receiver_;
