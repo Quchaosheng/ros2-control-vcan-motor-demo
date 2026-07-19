@@ -66,7 +66,7 @@ def test_virtual_motor_can_be_disabled_without_disabling_the_control_stack():
         if isinstance(action, Node)
     ]
     virtual_motor = next(
-        node for node in nodes if substitution_text(node.node_name) == "virtual_motor"
+        node for node in nodes if substitution_text(node.node_executable) == "virtual_motor_node"
     )
     controller_manager = next(
         node
