@@ -50,7 +50,18 @@ def walk_entities(entities, seen=None):
             continue
         seen.add(id(entity))
         yield entity
-        yield from walk_entities(entity.get_sub_entities(), seen)
+        children = list(entity.get_sub_entities())
+        # Humble's RegisterEventHandler does not expose on-exit actions via
+        # get_sub_entities(), so traverse the event-handler relationships too.
+        for attribute in ("event_handler", "on_exit", "target_action"):
+            related = getattr(entity, attribute, None)
+            if related is None:
+                continue
+            if isinstance(related, (list, tuple)):
+                children.extend(related)
+            else:
+                children.append(related)
+        yield from walk_entities(children, seen)
 
 
 def test_virtual_motor_can_be_disabled_without_disabling_the_control_stack():
