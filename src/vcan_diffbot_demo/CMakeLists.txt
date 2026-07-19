@@ -14,6 +14,7 @@ find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
+find_package(realtime_tools REQUIRED)
 find_package(ros2_socketcan REQUIRED)
 
 add_library(vcan_diffbot_hardware SHARED src/can_motor_hardware.cpp)
@@ -27,6 +28,7 @@ ament_target_dependencies(vcan_diffbot_hardware
   pluginlib
   rclcpp
   rclcpp_lifecycle
+  realtime_tools
   ros2_socketcan
 )
 
@@ -88,5 +90,5 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_targets(export_vcan_diffbot_hardware HAS_LIBRARY_TARGET)
-ament_export_dependencies(diagnostic_msgs hardware_interface pluginlib rclcpp rclcpp_lifecycle ros2_socketcan)
+ament_export_dependencies(diagnostic_msgs hardware_interface pluginlib rclcpp rclcpp_lifecycle realtime_tools ros2_socketcan)
 ament_package()

@@ -43,7 +43,7 @@ def generate_test_description():
         launch_arguments={
             "can_interface": can_interface,
             "drop_feedback_node_id": "2",
-            "feedback_timeout_ms": "1500",
+            "feedback_timeout_ms": "3000",
             "spawn_controllers": "false",
         }.items(),
     )
@@ -99,6 +99,7 @@ class TestDiagnostics(unittest.TestCase):
             if set(statuses) != STATUS_NAMES:
                 return False
             bus = statuses["vcan_diffbot/can_bus"]
+            left = statuses["vcan_diffbot/left_motor"]
             right = statuses["vcan_diffbot/right_motor"]
             bus_values = self.values(bus)
             right_values = self.values(right)
@@ -106,6 +107,8 @@ class TestDiagnostics(unittest.TestCase):
                 bus.level == DiagnosticStatus.ERROR
                 and bus_values.get("state") == "safe_stop"
                 and bus_values.get("stop_reason") == "feedback_timeout_node_2"
+                and left.level == DiagnosticStatus.ERROR
+                and left.message == "hardware safe stop"
                 and right.level == DiagnosticStatus.ERROR
                 and right_values.get("feedback_timeout") == "true"
             )
@@ -117,4 +120,3 @@ class TestDiagnostics(unittest.TestCase):
         self.assertEqual(set(left_values), MOTOR_KEYS)
         self.assertEqual(set(right_values), MOTOR_KEYS)
         self.assertEqual(right_values["node_id"], "2")
-
