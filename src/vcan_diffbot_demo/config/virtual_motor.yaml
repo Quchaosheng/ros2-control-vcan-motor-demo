@@ -1,12 +1,13 @@
 virtual_motor:
   ros__parameters:
     can_interface: vcan0
-    encoder_counts_per_revolution: 4096
     max_acceleration_rad_s2: 20.0
     update_rate_hz: 100.0
     feedback_rate_hz: 50.0
     drop_command_every_n: 0
     drop_feedback_every_n: 0
+    drop_command_node_id: 0
+    drop_feedback_node_id: 0
     feedback_delay_ms: 0
     malformed_feedback_every_n: 0
     error_frame_every_n: 0
