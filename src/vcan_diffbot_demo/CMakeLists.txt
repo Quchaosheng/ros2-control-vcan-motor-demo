@@ -73,6 +73,7 @@ if(BUILD_TESTING)
   target_include_directories(test_can_error_policy PRIVATE include)
 
   ament_add_pytest_test(test_urdf_xacro test/test_urdf_xacro.py)
+  ament_add_pytest_test(test_demo_launch_arguments test/test_demo_launch_arguments.py)
   ament_add_pytest_test(test_vcan_test_utils test/test_vcan_test_utils.py)
 
   ament_add_gtest(test_hardware_plugin test/test_hardware_plugin.cpp)
