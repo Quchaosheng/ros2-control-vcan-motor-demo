@@ -62,6 +62,15 @@ def walk_entities(entities, seen=None):
                 children.extend(related)
             else:
                 children.append(related)
+        describe = getattr(entity, "describe", None)
+        if describe:
+            description = describe()
+            if (
+                isinstance(description, tuple)
+                and len(description) > 1
+                and isinstance(description[1], (list, tuple))
+            ):
+                children.extend(description[1])
         yield from walk_entities(children, seen)
 
 
