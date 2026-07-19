@@ -12,6 +12,8 @@
 #include <utility>
 #include <vector>
 
+#include "diagnostic_msgs/msg/diagnostic_status.hpp"
+#include "diagnostic_msgs/msg/key_value.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -28,6 +30,38 @@ namespace
 constexpr double kTwoPi = 6.28318530717958647692;
 constexpr auto kSendTimeout = std::chrono::milliseconds(1);
 constexpr auto kReceivePollTimeout = std::chrono::microseconds(50);
+constexpr auto kDiagnosticsPeriod = std::chrono::milliseconds(500);
+
+void add_key(
+  diagnostic_msgs::msg::DiagnosticStatus & status, std::string key, std::string value)
+{
+  diagnostic_msgs::msg::KeyValue entry;
+  entry.key = std::move(key);
+  entry.value = std::move(value);
+  status.values.push_back(std::move(entry));
+}
+
+const char * ack_status_text(const AckStatus status)
+{
+  switch (status) {
+    case AckStatus::NONE:
+      return "none";
+    case AckStatus::ACCEPTED:
+      return "accepted";
+    case AckStatus::REJECTED:
+      return "rejected";
+    case AckStatus::UNEXPECTED:
+      return "unexpected";
+    case AckStatus::IGNORED:
+      return "ignored";
+  }
+  return "unexpected";
+}
+
+const char * bool_text(const bool value)
+{
+  return value ? "true" : "false";
+}
 
 long parse_positive(const std::string & value, const std::string & name)
 {
@@ -105,6 +139,11 @@ hardware_interface::CallbackReturn CanMotorHardware::on_init(
 
     feedback_timeout_ = std::chrono::milliseconds(parse_positive(
         info_.hardware_parameters.at("feedback_timeout_ms"), "feedback_timeout_ms"));
+
+    diagnostics_node_ = std::make_shared<rclcpp::Node>(
+      "vcan_diffbot_hardware_diagnostics");
+    diagnostics_publisher_ = diagnostics_node_->create_publisher<
+      diagnostic_msgs::msg::DiagnosticArray>("/diagnostics", 10);
   } catch (const std::exception & error) {
     RCLCPP_ERROR(logger_, "Invalid hardware configuration: %s", error.what());
     return hardware_interface::CallbackReturn::ERROR;
@@ -114,6 +153,7 @@ hardware_interface::CallbackReturn CanMotorHardware::on_init(
   positions_.fill(0.0);
   velocities_.fill(0.0);
   sequences_.fill(0U);
+  health_.reset(std::chrono::steady_clock::now());
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -151,21 +191,27 @@ hardware_interface::CallbackReturn CanMotorHardware::on_activate(
     receiver_->SetCanFilters(hardware_can_filters(node_ids_));
     const auto now = std::chrono::steady_clock::now();
     health_.reset(now);
-    last_can_error_.clear();
-    stop_reason_.clear();
+    last_can_error_ = "none";
+    stop_reason_ = "none";
     if (!send_safe_stop()) {
       throw std::runtime_error("failed to send activation safe stop");
     }
     fatal_fault_latched_ = false;
+    diagnostic_state_ = "active";
   } catch (const std::exception & error) {
     RCLCPP_ERROR(logger_, "Failed to activate CAN hardware on %s: %s",
       can_interface_.c_str(), error.what());
     sender_.reset();
     receiver_.reset();
+    diagnostic_state_ = "inactive";
+    last_can_error_ = error.what();
+    stop_reason_ = "activation_failed";
+    publish_diagnostics(true);
     return hardware_interface::CallbackReturn::ERROR;
   }
 
   RCLCPP_INFO(logger_, "CAN motor hardware active on %s", can_interface_.c_str());
+  publish_diagnostics(true);
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -176,6 +222,8 @@ hardware_interface::CallbackReturn CanMotorHardware::on_deactivate(
   const bool stopped = health_.stop_sent() || send_safe_stop();
   receiver_.reset();
   sender_.reset();
+  diagnostic_state_ = "inactive";
+  publish_diagnostics(true);
   return stopped ? hardware_interface::CallbackReturn::SUCCESS :
          hardware_interface::CallbackReturn::ERROR;
 }
@@ -210,6 +258,7 @@ hardware_interface::return_type CanMotorHardware::read(
         last_can_error_ = describe_can_error(error_mask);
         if (severity == CanErrorSeverity::WARNING) {
           RCLCPP_WARN(logger_, "SocketCAN warning: %s", last_can_error_.c_str());
+          publish_diagnostics(true);
           continue;
         }
 
@@ -218,7 +267,9 @@ hardware_interface::return_type CanMotorHardware::read(
         RCLCPP_ERROR(logger_, "Fatal SocketCAN error: %s", last_can_error_.c_str());
         commands_.fill(0.0);
         fatal_fault_latched_ = true;
+        diagnostic_state_ = "safe_stop";
         attempt_fault_safe_stop();
+        publish_diagnostics(true);
         return hardware_interface::return_type::ERROR;
       }
       if (can_id.frame_type() != drivers::socketcan::FrameType::DATA) {
@@ -252,9 +303,17 @@ hardware_interface::return_type CanMotorHardware::read(
           if (ack_status == AckStatus::REJECTED) {
             RCLCPP_WARN(logger_, "Motor node %u rejected command %u with result %u",
               node_ids_[index], ack->sequence, ack->result);
+            if (stop_reason_ == "none") {
+              stop_reason_ = "ack_rejected_node_" + std::to_string(node_ids_[index]);
+            }
+            publish_diagnostics(true);
           } else if (ack_status == AckStatus::UNEXPECTED) {
             RCLCPP_WARN(logger_, "Motor node %u returned unexpected ACK sequence %u",
               node_ids_[index], ack->sequence);
+            if (stop_reason_ == "none") {
+              stop_reason_ = "unexpected_ack_node_" + std::to_string(node_ids_[index]);
+            }
+            publish_diagnostics(true);
           }
           break;
         }
@@ -263,7 +322,13 @@ hardware_interface::return_type CanMotorHardware::read(
   } catch (const std::exception & error) {
     RCLCPP_ERROR(logger_, "SocketCAN receive failed: %s", error.what());
     commands_.fill(0.0);
+    last_can_error_ = error.what();
+    if (stop_reason_ == "none") {
+      stop_reason_ = "can_receive_error";
+    }
+    diagnostic_state_ = "safe_stop";
     attempt_fault_safe_stop();
+    publish_diagnostics(true);
     return hardware_interface::return_type::ERROR;
   }
 
@@ -273,12 +338,18 @@ hardware_interface::return_type CanMotorHardware::read(
   for (std::size_t index = 0; index < node_ids_.size(); ++index) {
     if (health_.feedback_timed_out(index, now, feedback_timeout_)) {
       fault = true;
+      if (stop_reason_ == "none") {
+        stop_reason_ = "feedback_timeout_node_" + std::to_string(node_ids_[index]);
+      }
       if (!health_.stop_sent()) {
         RCLCPP_ERROR(logger_, "Feedback timeout for motor node %u", node_ids_[index]);
       }
     }
     if (health_.ack_timed_out(index, now, ack_timeout_)) {
       fault = true;
+      if (stop_reason_ == "none") {
+        stop_reason_ = "ack_timeout_node_" + std::to_string(node_ids_[index]);
+      }
       if (!health_.stop_sent()) {
         RCLCPP_ERROR(logger_, "ACK timeout for motor node %u", node_ids_[index]);
       }
@@ -287,9 +358,12 @@ hardware_interface::return_type CanMotorHardware::read(
 
   if (fault) {
     commands_.fill(0.0);
+    diagnostic_state_ = "safe_stop";
     attempt_fault_safe_stop();
+    publish_diagnostics(true);
     return hardware_interface::return_type::ERROR;
   }
+  publish_diagnostics();
   return hardware_interface::return_type::OK;
 }
 
@@ -306,7 +380,12 @@ hardware_interface::return_type CanMotorHardware::write(
   for (std::size_t index = 0; index < commands_.size(); ++index) {
     if (!send_command(index, true, commands_[index])) {
       commands_.fill(0.0);
+      if (stop_reason_ == "none") {
+        stop_reason_ = "can_send_error";
+      }
+      diagnostic_state_ = "safe_stop";
       attempt_fault_safe_stop();
+      publish_diagnostics(true);
       return hardware_interface::return_type::ERROR;
     }
   }
@@ -342,6 +421,7 @@ bool CanMotorHardware::send_command(
   } catch (const std::exception & error) {
     RCLCPP_ERROR(logger_, "Failed to send command to motor node %u: %s",
       node_ids_[index], error.what());
+    last_can_error_ = error.what();
     return false;
   }
 }
@@ -371,6 +451,91 @@ bool CanMotorHardware::attempt_fault_safe_stop()
 
   RCLCPP_ERROR(logger_, "Failed to send complete safe stop");
   return false;
+}
+
+void CanMotorHardware::publish_diagnostics(const bool force)
+{
+  if (!diagnostics_node_ || !diagnostics_publisher_) {
+    return;
+  }
+
+  using diagnostic_msgs::msg::DiagnosticStatus;
+  const auto now = std::chrono::steady_clock::now();
+  const bool monitoring = diagnostic_state_ != "inactive";
+  std::array<bool, 2> ack_timeouts{};
+  std::array<bool, 2> feedback_timeouts{};
+
+  diagnostic_msgs::msg::DiagnosticArray message;
+  message.header.stamp = diagnostics_node_->now();
+  message.status.reserve(3U);
+
+  DiagnosticStatus bus;
+  bus.name = "vcan_diffbot/can_bus";
+  bus.hardware_id = can_interface_;
+  if (diagnostic_state_ == "safe_stop") {
+    bus.level = DiagnosticStatus::ERROR;
+    bus.message = "safe stop";
+  } else if (diagnostic_state_ == "inactive") {
+    bus.level = DiagnosticStatus::WARN;
+    bus.message = "inactive";
+  } else if (last_can_error_ != "none") {
+    bus.level = DiagnosticStatus::WARN;
+    bus.message = "CAN warning";
+  } else {
+    bus.level = DiagnosticStatus::OK;
+    bus.message = "active";
+  }
+  add_key(bus, "can_interface", can_interface_);
+  add_key(bus, "state", diagnostic_state_);
+  add_key(bus, "last_can_error", last_can_error_.empty() ? "none" : last_can_error_);
+  add_key(bus, "stop_reason", stop_reason_.empty() ? "none" : stop_reason_);
+  add_key(bus, "command_watchdog_ms", std::to_string(command_watchdog_ms_));
+  add_key(bus, "feedback_timeout_ms", std::to_string(feedback_timeout_.count()));
+  message.status.push_back(std::move(bus));
+
+  for (std::size_t index = 0; index < node_ids_.size(); ++index) {
+    ack_timeouts[index] = monitoring && health_.ack_timed_out(index, now, ack_timeout_);
+    feedback_timeouts[index] =
+      monitoring && health_.feedback_timed_out(index, now, feedback_timeout_);
+    const auto ack_status = health_.last_ack_status(index);
+
+    DiagnosticStatus motor;
+    motor.name = index == 0U ? "vcan_diffbot/left_motor" : "vcan_diffbot/right_motor";
+    motor.hardware_id = can_interface_ + ":" + std::to_string(node_ids_[index]);
+    if (ack_timeouts[index] || feedback_timeouts[index]) {
+      motor.level = DiagnosticStatus::ERROR;
+      motor.message = feedback_timeouts[index] ? "feedback timeout" : "ACK timeout";
+    } else if (ack_status == AckStatus::REJECTED || ack_status == AckStatus::UNEXPECTED) {
+      motor.level = DiagnosticStatus::WARN;
+      motor.message = "ACK warning";
+    } else {
+      motor.level = DiagnosticStatus::OK;
+      motor.message = "healthy";
+    }
+    add_key(motor, "node_id", std::to_string(node_ids_[index]));
+    add_key(motor, "feedback_age_ms", std::to_string(health_.feedback_age(index, now).count()));
+    add_key(motor, "pending_ack_count", std::to_string(health_.pending_ack_count(index)));
+    add_key(motor, "last_ack_status", ack_status_text(ack_status));
+    add_key(motor, "wheel_velocity_rad_s", std::to_string(velocities_[index]));
+    add_key(motor, "ack_timeout", bool_text(ack_timeouts[index]));
+    add_key(motor, "feedback_timeout", bool_text(feedback_timeouts[index]));
+    message.status.push_back(std::move(motor));
+  }
+
+  const std::string signature = diagnostic_state_ + "|" + stop_reason_ + "|" +
+    std::to_string(message.status[0].level) + "|" +
+    std::to_string(message.status[1].level) + "|" +
+    std::to_string(message.status[2].level);
+  if (!force && diagnostics_published_ && signature == last_diagnostics_signature_ &&
+    now - last_diagnostics_publish_ < kDiagnosticsPeriod)
+  {
+    return;
+  }
+
+  diagnostics_publisher_->publish(message);
+  last_diagnostics_publish_ = now;
+  last_diagnostics_signature_ = signature;
+  diagnostics_published_ = true;
 }
 
 }  // namespace vcan_diffbot_demo
