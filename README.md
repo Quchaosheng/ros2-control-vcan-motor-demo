@@ -91,14 +91,16 @@ ros2 launch vcan_diffbot_demo demo.launch.py
 
 ### Shared launch configuration
 
-All five values are passed to the hardware through Xacro. `left_node_id`, `right_node_id`, and
-`encoder_counts_per_revolution` are also passed directly to the virtual motor. The hardware carries
-`command_watchdog_ms` in every command frame for the motor to enforce, while
+`can_interface` and all five configuration values are passed to the hardware through Xacro.
+`can_interface`, `left_node_id`, `right_node_id`, and `encoder_counts_per_revolution` are also
+passed directly to the virtual motor. The hardware carries `command_watchdog_ms` in every command
+frame for the motor to enforce, while
 `feedback_timeout_ms` remains the hardware-side feedback deadline. Keep the corresponding protocol
 values aligned with the physical controller when using hardware CAN.
 
 | Launch argument | Default | Purpose |
 | --- | ---: | --- |
+| `can_interface` | `vcan0` | SocketCAN interface name |
 | `left_node_id` | `1` | Left motor node ID |
 | `right_node_id` | `2` | Right motor node ID |
 | `encoder_counts_per_revolution` | `4096` | Encoder scaling used for wheel position |
@@ -166,7 +168,8 @@ Normal traffic contains the following identifiers:
 
 ## CAN protocol
 
-All frames use classic 11-bit CAN identifiers, DLC 8, and little-endian multibyte fields.
+Application data frames use classic 11-bit CAN identifiers, DLC 8, and little-endian multibyte
+fields.
 
 ![Byte layout of command, feedback, and ACK CAN frames](docs/assets/readme/can-frame-layout.svg)
 
