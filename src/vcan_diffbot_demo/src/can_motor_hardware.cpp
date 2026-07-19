@@ -194,6 +194,8 @@ hardware_interface::CallbackReturn CanMotorHardware::on_activate(
   const rclcpp_lifecycle::State &)
 {
   commands_.fill(0.0);
+  fault_stop_attempted_ = false;
+  fault_stop_succeeded_ = false;
   try {
     sender_ = std::make_unique<drivers::socketcan::SocketCanSender>(can_interface_);
     receiver_ = std::make_unique<drivers::socketcan::SocketCanReceiver>(can_interface_);
@@ -249,6 +251,13 @@ hardware_interface::return_type CanMotorHardware::read(
     return hardware_interface::return_type::ERROR;
   }
   if (!receiver_) {
+    commands_.fill(0.0);
+    last_can_error_ = "receiver_unavailable";
+    stop_reason_ = "can_receive_unavailable";
+    fault_latched_ = true;
+    diagnostic_state_ = "safe_stop";
+    attempt_fault_safe_stop();
+    publish_diagnostics(true);
     return hardware_interface::return_type::ERROR;
   }
 
@@ -388,6 +397,13 @@ hardware_interface::return_type CanMotorHardware::write(
     return hardware_interface::return_type::ERROR;
   }
   if (!sender_) {
+    commands_.fill(0.0);
+    last_can_error_ = "sender_unavailable";
+    stop_reason_ = "can_send_unavailable";
+    fault_latched_ = true;
+    diagnostic_state_ = "safe_stop";
+    attempt_fault_safe_stop();
+    publish_diagnostics(true);
     return hardware_interface::return_type::ERROR;
   }
 
