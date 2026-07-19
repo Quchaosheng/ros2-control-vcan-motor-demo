@@ -54,7 +54,7 @@ def walk_entities(entities, seen=None):
         children = list(get_sub_entities()) if get_sub_entities else []
         # Humble's RegisterEventHandler does not expose on-exit actions via
         # get_sub_entities(), so traverse the event-handler relationships too.
-        for attribute in ("event_handler", "on_exit", "target_action"):
+        for attribute in ("event_handler", "entities", "on_exit", "target_action"):
             related = getattr(entity, attribute, None)
             if related is None:
                 continue
