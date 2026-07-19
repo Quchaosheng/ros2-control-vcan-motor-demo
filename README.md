@@ -91,8 +91,11 @@ ros2 launch vcan_diffbot_demo demo.launch.py
 
 ### Shared launch configuration
 
-These values configure both the `ros2_control` hardware interface and the virtual motor when it is
-started. Keep them aligned with the physical controller when using hardware CAN.
+All five values are passed to the hardware through Xacro. `left_node_id`, `right_node_id`, and
+`encoder_counts_per_revolution` are also passed directly to the virtual motor. The hardware carries
+`command_watchdog_ms` in every command frame for the motor to enforce, while
+`feedback_timeout_ms` remains the hardware-side feedback deadline. Keep the corresponding protocol
+values aligned with the physical controller when using hardware CAN.
 
 | Launch argument | Default | Purpose |
 | --- | ---: | --- |
@@ -249,13 +252,15 @@ colcon test --packages-select vcan_diffbot_demo
 colcon test-result --verbose
 ```
 
-The suite currently contains 42 tests covering:
+The complete CTest suite covers:
 
 - byte-level protocol encoding and validation;
 - motor acceleration, encoder integration, and watchdog behavior;
 - plugin loading, lifecycle safety, ACK health, and CAN filters;
 - raw CAN faults and the complete differential-drive control loop;
 - one-sided feedback loss and bounded safe-stop traffic.
+
+It is expected to finish with zero errors, zero failures, and zero skipped tests.
 
 Launch tests create process-specific virtual CAN interfaces instead of sharing `vcan0`. Creating
 an interface requires root or passwordless non-interactive `sudo`. Each test deletes only the
