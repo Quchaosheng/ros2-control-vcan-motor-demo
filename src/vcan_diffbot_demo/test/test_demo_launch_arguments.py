@@ -35,6 +35,10 @@ def action_is_enabled(action, start_virtual_motor, spawn_controllers="true"):
 
 
 def substitution_text(substitutions):
+    if isinstance(substitutions, str):
+        return substitutions
+    if not isinstance(substitutions, (list, tuple)):
+        substitutions = [substitutions]
     return perform_substitutions(LaunchContext(), substitutions)
 
 
