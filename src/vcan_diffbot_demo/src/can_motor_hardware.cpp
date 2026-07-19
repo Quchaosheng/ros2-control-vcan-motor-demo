@@ -228,7 +228,8 @@ hardware_interface::CallbackReturn CanMotorHardware::on_deactivate(
   const bool stopped = health_.stop_sent() || send_safe_stop();
   receiver_.reset();
   sender_.reset();
-  diagnostic_state_ = "inactive";
+  diagnostic_state_ = (fatal_fault_latched_ || stop_reason_ != "none") ?
+    "safe_stop" : "inactive";
   publish_diagnostics(true);
   return stopped ? hardware_interface::CallbackReturn::SUCCESS :
          hardware_interface::CallbackReturn::ERROR;
@@ -238,6 +239,7 @@ hardware_interface::return_type CanMotorHardware::read(
   const rclcpp::Time &, const rclcpp::Duration &)
 {
   if (fatal_fault_latched_) {
+    publish_diagnostics(true);
     return hardware_interface::return_type::ERROR;
   }
   if (!receiver_) {
@@ -375,6 +377,7 @@ hardware_interface::return_type CanMotorHardware::write(
   const rclcpp::Time &, const rclcpp::Duration &)
 {
   if (fatal_fault_latched_) {
+    publish_diagnostics(true);
     return hardware_interface::return_type::ERROR;
   }
   if (!sender_) {
@@ -464,10 +467,15 @@ void CanMotorHardware::publish_diagnostics(const bool force)
   }
 
   const auto now = std::chrono::steady_clock::now();
-  if (!force && diagnostics_published_ && now - last_diagnostics_publish_ < kDiagnosticsPeriod) {
+  if (!force && !diagnostics_pending_ && diagnostics_published_ &&
+    now - last_diagnostics_publish_ < kDiagnosticsPeriod)
+  {
     return;
   }
   if (!diagnostics_publisher_->trylock()) {
+    if (force) {
+      diagnostics_pending_ = true;
+    }
     return;
   }
 
@@ -539,6 +547,7 @@ void CanMotorHardware::publish_diagnostics(const bool force)
   diagnostics_publisher_->unlockAndPublish();
   last_diagnostics_publish_ = now;
   diagnostics_published_ = true;
+  diagnostics_pending_ = false;
 }
 
 }  // namespace vcan_diffbot_demo
