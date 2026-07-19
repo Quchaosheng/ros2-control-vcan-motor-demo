@@ -50,7 +50,8 @@ def walk_entities(entities, seen=None):
             continue
         seen.add(id(entity))
         yield entity
-        children = list(entity.get_sub_entities())
+        get_sub_entities = getattr(entity, "get_sub_entities", None)
+        children = list(get_sub_entities()) if get_sub_entities else []
         # Humble's RegisterEventHandler does not expose on-exit actions via
         # get_sub_entities(), so traverse the event-handler relationships too.
         for attribute in ("event_handler", "on_exit", "target_action"):
