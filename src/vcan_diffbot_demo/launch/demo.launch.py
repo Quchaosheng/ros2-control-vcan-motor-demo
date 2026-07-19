@@ -10,11 +10,21 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     can_interface = LaunchConfiguration("can_interface")
+    left_node_id = LaunchConfiguration("left_node_id")
+    right_node_id = LaunchConfiguration("right_node_id")
+    encoder_counts_per_revolution = LaunchConfiguration(
+        "encoder_counts_per_revolution"
+    )
+    command_watchdog_ms = LaunchConfiguration("command_watchdog_ms")
+    feedback_timeout_ms = LaunchConfiguration("feedback_timeout_ms")
     drop_command_every_n = LaunchConfiguration("drop_command_every_n")
     drop_feedback_every_n = LaunchConfiguration("drop_feedback_every_n")
+    drop_command_node_id = LaunchConfiguration("drop_command_node_id")
+    drop_feedback_node_id = LaunchConfiguration("drop_feedback_node_id")
     feedback_delay_ms = LaunchConfiguration("feedback_delay_ms")
     malformed_feedback_every_n = LaunchConfiguration("malformed_feedback_every_n")
     error_frame_every_n = LaunchConfiguration("error_frame_every_n")
+    start_virtual_motor = LaunchConfiguration("start_virtual_motor")
     spawn_controllers = LaunchConfiguration("spawn_controllers")
 
     package_share = FindPackageShare("vcan_diffbot_demo")
@@ -29,6 +39,16 @@ def generate_launch_description():
                     ),
                     '" can_interface:=',
                     can_interface,
+                    " left_node_id:=",
+                    left_node_id,
+                    " right_node_id:=",
+                    right_node_id,
+                    " encoder_counts_per_revolution:=",
+                    encoder_counts_per_revolution,
+                    " command_watchdog_ms:=",
+                    command_watchdog_ms,
+                    " feedback_timeout_ms:=",
+                    feedback_timeout_ms,
                 ]
             ),
             value_type=str,
@@ -46,15 +66,27 @@ def generate_launch_description():
         executable="virtual_motor_node",
         name="virtual_motor",
         output="screen",
+        condition=IfCondition(start_virtual_motor),
         parameters=[
             motor_parameters,
             {
                 "can_interface": can_interface,
+                "left_node_id": ParameterValue(left_node_id, value_type=int),
+                "right_node_id": ParameterValue(right_node_id, value_type=int),
+                "encoder_counts_per_revolution": ParameterValue(
+                    encoder_counts_per_revolution, value_type=int
+                ),
                 "drop_command_every_n": ParameterValue(
                     drop_command_every_n, value_type=int
                 ),
                 "drop_feedback_every_n": ParameterValue(
                     drop_feedback_every_n, value_type=int
+                ),
+                "drop_command_node_id": ParameterValue(
+                    drop_command_node_id, value_type=int
+                ),
+                "drop_feedback_node_id": ParameterValue(
+                    drop_feedback_node_id, value_type=int
                 ),
                 "feedback_delay_ms": ParameterValue(feedback_delay_ms, value_type=int),
                 "malformed_feedback_every_n": ParameterValue(
@@ -115,11 +147,21 @@ def generate_launch_description():
 
     arguments = [
         DeclareLaunchArgument("can_interface", default_value="vcan0"),
+        DeclareLaunchArgument("left_node_id", default_value="1"),
+        DeclareLaunchArgument("right_node_id", default_value="2"),
+        DeclareLaunchArgument(
+            "encoder_counts_per_revolution", default_value="4096"
+        ),
+        DeclareLaunchArgument("command_watchdog_ms", default_value="200"),
+        DeclareLaunchArgument("feedback_timeout_ms", default_value="500"),
         DeclareLaunchArgument("drop_command_every_n", default_value="0"),
         DeclareLaunchArgument("drop_feedback_every_n", default_value="0"),
+        DeclareLaunchArgument("drop_command_node_id", default_value="0"),
+        DeclareLaunchArgument("drop_feedback_node_id", default_value="0"),
         DeclareLaunchArgument("feedback_delay_ms", default_value="0"),
         DeclareLaunchArgument("malformed_feedback_every_n", default_value="0"),
         DeclareLaunchArgument("error_frame_every_n", default_value="0"),
+        DeclareLaunchArgument("start_virtual_motor", default_value="true"),
         DeclareLaunchArgument("spawn_controllers", default_value="true"),
     ]
     return LaunchDescription(
