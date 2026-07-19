@@ -13,6 +13,7 @@ namespace vcan_diffbot_demo
 
 enum class AckStatus
 {
+  NONE,
   ACCEPTED,
   REJECTED,
   UNEXPECTED,
@@ -32,6 +33,7 @@ public:
       pending.clear();
     }
     ignored_ack_sequences_.fill(std::nullopt);
+    last_ack_status_.fill(AckStatus::NONE);
     ack_fault_ = false;
     stop_sent_ = false;
   }
@@ -62,19 +64,34 @@ public:
     if (!pending.empty() && pending.front().sequence == sequence) {
       pending.pop_front();
       if (result == 0U) {
+        last_ack_status_[index] = AckStatus::ACCEPTED;
         return AckStatus::ACCEPTED;
       }
       ack_fault_ = true;
+      last_ack_status_[index] = AckStatus::REJECTED;
       return AckStatus::REJECTED;
     }
 
     if (ignored_ack_sequences_[index] == sequence) {
       ignored_ack_sequences_[index].reset();
+      last_ack_status_[index] = AckStatus::IGNORED;
       return AckStatus::IGNORED;
     }
 
     ack_fault_ = true;
+    last_ack_status_[index] = AckStatus::UNEXPECTED;
     return AckStatus::UNEXPECTED;
+  }
+
+  std::size_t pending_ack_count(const std::size_t index) const
+  {
+    return index < pending_acks_.size() ? pending_acks_[index].size() : 0U;
+  }
+
+  AckStatus last_ack_status(const std::size_t index) const
+  {
+    return index < last_ack_status_.size() ?
+           last_ack_status_[index] : AckStatus::UNEXPECTED;
   }
 
   bool ack_timed_out(
@@ -126,6 +143,14 @@ public:
     return index < last_feedback_.size() && now - last_feedback_[index] > timeout;
   }
 
+  std::chrono::milliseconds feedback_age(
+    const std::size_t index, const TimePoint now) const
+  {
+    return index < last_feedback_.size() ?
+           std::chrono::duration_cast<std::chrono::milliseconds>(now - last_feedback_[index]) :
+           std::chrono::milliseconds(0);
+  }
+
   void mark_stop_sent()
   {
     stop_sent_ = true;
@@ -156,6 +181,7 @@ private:
 
   std::array<std::deque<PendingAck>, 2> pending_acks_;
   std::array<std::optional<uint8_t>, 2> ignored_ack_sequences_{};
+  std::array<AckStatus, 2> last_ack_status_{};
   std::array<TimePoint, 2> last_feedback_{};
   bool ack_fault_{false};
   bool stop_sent_{false};

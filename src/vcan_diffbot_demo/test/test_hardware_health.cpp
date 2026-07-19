@@ -15,7 +15,11 @@ TEST(HardwareHealth, AcceptsMatchingAck)
   health.reset(now);
   health.command_sent(0, 7, now);
 
+  EXPECT_EQ(health.pending_ack_count(0), 1U);
+  EXPECT_EQ(health.last_ack_status(0), AckStatus::NONE);
   EXPECT_EQ(health.ack_received(0, 7, 0), AckStatus::ACCEPTED);
+  EXPECT_EQ(health.pending_ack_count(0), 0U);
+  EXPECT_EQ(health.last_ack_status(0), AckStatus::ACCEPTED);
   EXPECT_FALSE(health.ack_fault());
   EXPECT_FALSE(health.ack_timed_out(now + 250ms, 200ms));
 }
@@ -28,12 +32,26 @@ TEST(HardwareHealth, RejectsFailedOrUnexpectedAck)
   health.command_sent(0, 8, now);
 
   EXPECT_EQ(health.ack_received(0, 8, 2), AckStatus::REJECTED);
+  EXPECT_EQ(health.last_ack_status(0), AckStatus::REJECTED);
   EXPECT_TRUE(health.ack_fault());
 
   health.reset(now);
   health.command_sent(0, 9, now);
   EXPECT_EQ(health.ack_received(0, 10, 0), AckStatus::UNEXPECTED);
+  EXPECT_EQ(health.last_ack_status(0), AckStatus::UNEXPECTED);
   EXPECT_TRUE(health.ack_fault());
+}
+
+TEST(HardwareHealth, ExposesFeedbackAgeAndBoundsSafeDiagnosticState)
+{
+  HardwareHealth health;
+  const auto now = HardwareHealth::Clock::now();
+  health.reset(now);
+
+  EXPECT_EQ(health.feedback_age(0, now + 75ms), 75ms);
+  EXPECT_EQ(health.pending_ack_count(2), 0U);
+  EXPECT_EQ(health.last_ack_status(2), AckStatus::UNEXPECTED);
+  EXPECT_EQ(health.feedback_age(2, now + 75ms), 0ms);
 }
 
 TEST(HardwareHealth, DetectsMissingAck)

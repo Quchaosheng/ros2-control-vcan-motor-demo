@@ -9,8 +9,11 @@
 #include <string>
 #include <vector>
 
+#include "diagnostic_msgs/msg/diagnostic_array.hpp"
 #include "hardware_interface/system_interface.hpp"
 #include "rclcpp/logger.hpp"
+#include "rclcpp/node.hpp"
+#include "rclcpp/publisher.hpp"
 #include "ros2_socketcan/socket_can_receiver.hpp"
 #include "ros2_socketcan/socket_can_sender.hpp"
 #include "vcan_diffbot_demo/hardware_health.hpp"
@@ -42,6 +45,7 @@ private:
     std::size_t index, bool enabled, double velocity_rad_s, bool track_ack = true);
   bool send_safe_stop();
   bool attempt_fault_safe_stop();
+  void publish_diagnostics(bool force = false);
 
   rclcpp::Logger logger_{rclcpp::get_logger("vcan_diffbot_demo.CanMotorHardware")};
   std::string can_interface_;
@@ -58,10 +62,16 @@ private:
   HardwareHealth health_;
   bool fatal_fault_latched_{false};
   std::string last_can_error_;
-  std::string stop_reason_;
+  std::string stop_reason_{"none"};
+  std::string diagnostic_state_{"inactive"};
+  HardwareHealth::TimePoint last_diagnostics_publish_{};
+  std::string last_diagnostics_signature_;
+  bool diagnostics_published_{false};
 
   std::unique_ptr<drivers::socketcan::SocketCanSender> sender_;
   std::unique_ptr<drivers::socketcan::SocketCanReceiver> receiver_;
+  rclcpp::Node::SharedPtr diagnostics_node_;
+  rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_publisher_;
 };
 
 }  // namespace vcan_diffbot_demo
