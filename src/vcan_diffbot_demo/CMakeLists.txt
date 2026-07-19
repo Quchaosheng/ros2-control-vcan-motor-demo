@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(ament_cmake REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -21,6 +22,7 @@ target_include_directories(vcan_diffbot_hardware PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 ament_target_dependencies(vcan_diffbot_hardware
+  diagnostic_msgs
   hardware_interface
   pluginlib
   rclcpp
@@ -72,7 +74,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_vcan_test_utils test/test_vcan_test_utils.py)
 
   ament_add_gtest(test_hardware_plugin test/test_hardware_plugin.cpp)
-  ament_target_dependencies(test_hardware_plugin hardware_interface pluginlib)
+  ament_target_dependencies(test_hardware_plugin hardware_interface pluginlib rclcpp)
   target_include_directories(test_hardware_plugin PRIVATE include)
   target_link_libraries(test_hardware_plugin vcan_diffbot_hardware)
 
@@ -82,8 +84,9 @@ if(BUILD_TESTING)
   add_launch_test(test/test_ack_timeout_launch.py TIMEOUT 60)
   add_launch_test(test/test_can_busoff_launch.py TIMEOUT 60)
   add_launch_test(test/test_invalid_fault_selector_launch.py TIMEOUT 30)
+  add_launch_test(test/test_diagnostics_launch.py TIMEOUT 60)
 endif()
 
 ament_export_targets(export_vcan_diffbot_hardware HAS_LIBRARY_TARGET)
-ament_export_dependencies(hardware_interface pluginlib rclcpp rclcpp_lifecycle ros2_socketcan)
+ament_export_dependencies(diagnostic_msgs hardware_interface pluginlib rclcpp rclcpp_lifecycle ros2_socketcan)
 ament_package()

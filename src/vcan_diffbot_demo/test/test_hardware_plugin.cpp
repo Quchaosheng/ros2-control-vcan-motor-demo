@@ -5,6 +5,7 @@
 
 #include "hardware_interface/system_interface.hpp"
 #include "pluginlib/class_loader.hpp"
+#include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 #include "vcan_diffbot_demo/can_motor_hardware.hpp"
 
@@ -41,7 +42,25 @@ hardware_interface::HardwareInfo make_hardware_info()
 
 }  // namespace
 
-TEST(CanMotorHardware, LoadsThroughPluginlib)
+class CanMotorHardwareTest : public ::testing::Test
+{
+protected:
+  static void SetUpTestSuite()
+  {
+    if (!rclcpp::ok()) {
+      rclcpp::init(0, nullptr);
+    }
+  }
+
+  static void TearDownTestSuite()
+  {
+    if (rclcpp::ok()) {
+      rclcpp::shutdown();
+    }
+  }
+};
+
+TEST_F(CanMotorHardwareTest, LoadsThroughPluginlib)
 {
   pluginlib::ClassLoader<hardware_interface::SystemInterface> loader(
     "hardware_interface", "hardware_interface::SystemInterface");
@@ -49,7 +68,7 @@ TEST(CanMotorHardware, LoadsThroughPluginlib)
   ASSERT_NE(hardware, nullptr);
 }
 
-TEST(CanMotorHardware, ClearsCommandsBeforeFailedActivation)
+TEST_F(CanMotorHardwareTest, ClearsCommandsBeforeFailedActivation)
 {
   vcan_diffbot_demo::CanMotorHardware hardware;
   ASSERT_EQ(hardware.on_init(make_hardware_info()), hardware_interface::CallbackReturn::SUCCESS);
@@ -64,7 +83,7 @@ TEST(CanMotorHardware, ClearsCommandsBeforeFailedActivation)
   EXPECT_DOUBLE_EQ(commands[1].get_value(), 0.0);
 }
 
-TEST(CanMotorHardware, ReportsDeactivationFailureWithoutSender)
+TEST_F(CanMotorHardwareTest, ReportsDeactivationFailureWithoutSender)
 {
   vcan_diffbot_demo::CanMotorHardware hardware;
   const rclcpp_lifecycle::State state;
