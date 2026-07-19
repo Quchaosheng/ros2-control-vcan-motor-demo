@@ -13,6 +13,9 @@ virtual motors on SocketCAN. It is small enough to read end to end, but still co
 matter in a real driver: command and state interfaces, ACK tracking, encoder feedback, watchdogs,
 safe stopping, receive filters, and deterministic CAN faults.
 
+The live GitHub Actions badge above reports the ROS 2 Humble build and test workflow for this
+repository. The project is licensed under [Apache-2.0](LICENSE).
+
 ## Demo
 
 [![Recorded vcan DiffBot run with CAN and safety telemetry](docs/demo/vcan_diffbot_demo.gif)](docs/demo/vcan_diffbot_demo.mp4)
@@ -86,6 +89,19 @@ source install/setup.bash
 ros2 launch vcan_diffbot_demo demo.launch.py
 ```
 
+### Shared launch configuration
+
+These values configure both the `ros2_control` hardware interface and the virtual motor when it is
+started. Keep them aligned with the physical controller when using hardware CAN.
+
+| Launch argument | Default | Purpose |
+| --- | ---: | --- |
+| `left_node_id` | `1` | Left motor node ID |
+| `right_node_id` | `2` | Right motor node ID |
+| `encoder_counts_per_revolution` | `4096` | Encoder scaling used for wheel position |
+| `command_watchdog_ms` | `200` | Motor-side command watchdog period |
+| `feedback_timeout_ms` | `500` | Hardware-side per-motor feedback deadline |
+
 ### 5. Drive the robot
 
 Open another WSL terminal:
@@ -121,7 +137,15 @@ Check controller and robot state:
 ros2 control list_controllers
 ros2 topic echo /joint_states
 ros2 topic echo /diffbot_base_controller/odom
+ros2 topic echo /diagnostics
 ```
+
+`/diagnostics` publishes one CAN-bus status and one status for each motor.
+
+| Status | Fields to inspect |
+| --- | --- |
+| Bus | `can_interface`, `state`, `last_can_error`, `stop_reason`, `command_watchdog_ms`, `feedback_timeout_ms` |
+| Motor | `node_id`, `feedback_age_ms`, `pending_ack_count`, `last_ack_status`, `wheel_velocity_rad_s`, `ack_timeout`, `feedback_timeout` |
 
 Watch raw CAN traffic:
 
@@ -174,6 +198,10 @@ The hardware tracks commands until matching ACKs arrive. A rejected, unexpected,
 faults the hardware and sends disabled zero commands to both motors. Feedback loss on either motor
 uses the same safe-stop path.
 
+SocketCAN warning frames are reported in `/diagnostics` and do not stop the stack. BUS-OFF and
+TX-timeout frames are fatal: the hardware clears commands, sends its one safe-stop attempt, latches
+the fault, and returns an error until the hardware is reactivated.
+
 ## Fault injection
 
 Faults are disabled by default. Every-N settings are deterministic, which keeps failures
@@ -194,18 +222,22 @@ ros2 launch vcan_diffbot_demo demo.launch.py \
 | --- | --- |
 | `drop_command_every_n` | Drops every Nth command and its ACK |
 | `drop_feedback_every_n` | Drops every Nth encoder feedback frame |
+| `drop_command_node_id` | Drops every command and ACK for one motor node ID; `0` disables selection |
+| `drop_feedback_node_id` | Drops all feedback for one motor node ID; `0` disables selection |
 | `feedback_delay_ms` | Queues feedback until the configured delay expires |
 | `malformed_feedback_every_n` | Sends every Nth feedback frame with DLC 7 |
 | `error_frame_every_n` | Adds a SocketCAN error frame every Nth feedback frame |
 | `spawn_controllers` | Set to `false` for hardware-only diagnostics |
 
-For example, this command drops all feedback and exercises the hardware timeout:
+For a deterministic one-sided timeout, drop right-motor feedback by node ID:
 
 ```bash
 ros2 launch vcan_diffbot_demo demo.launch.py \
-  drop_feedback_every_n:=1 \
+  drop_feedback_node_id:=2 \
   spawn_controllers:=false
 ```
+
+Use the every-N arguments above for repeatable intermittent command or feedback loss.
 
 ## Tests
 
