@@ -29,7 +29,7 @@ def generate_test_description():
         PythonLaunchDescriptionSource(launch_file),
         launch_arguments={
             "can_interface": can_interface,
-            "drop_command_every_n": "1",
+            "drop_command_node_id": "1",
             "spawn_controllers": "false",
         }.items(),
     )
@@ -45,7 +45,7 @@ class TestAckTimeout(unittest.TestCase):
         can_socket.bind((can_interface,))
         can_socket.settimeout(0.2)
 
-        proc_output.assertWaitFor("ACK timeout for motor node", timeout=10.0)
+        proc_output.assertWaitFor("ACK timeout for motor node 1", timeout=10.0)
 
         safe_stop_received = False
         deadline = time.monotonic() + 2.0

@@ -9,8 +9,11 @@
 #include <string>
 #include <vector>
 
+#include "diagnostic_msgs/msg/diagnostic_array.hpp"
 #include "hardware_interface/system_interface.hpp"
 #include "rclcpp/logger.hpp"
+#include "rclcpp/node.hpp"
+#include "realtime_tools/realtime_publisher.hpp"
 #include "ros2_socketcan/socket_can_receiver.hpp"
 #include "ros2_socketcan/socket_can_sender.hpp"
 #include "vcan_diffbot_demo/hardware_health.hpp"
@@ -31,6 +34,8 @@ public:
     const rclcpp_lifecycle::State & previous_state) override;
   hardware_interface::CallbackReturn on_deactivate(
     const rclcpp_lifecycle::State & previous_state) override;
+  hardware_interface::CallbackReturn on_shutdown(
+    const rclcpp_lifecycle::State & previous_state) override;
 
   hardware_interface::return_type read(
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
@@ -41,6 +46,10 @@ private:
   bool send_command(
     std::size_t index, bool enabled, double velocity_rad_s, bool track_ack = true);
   bool send_safe_stop();
+  bool attempt_fault_safe_stop();
+  hardware_interface::CallbackReturn stop_and_release();
+  void publish_diagnostics(bool force = false);
+  void flush_pending_diagnostics();
 
   rclcpp::Logger logger_{rclcpp::get_logger("vcan_diffbot_demo.CanMotorHardware")};
   std::string can_interface_;
@@ -55,9 +64,21 @@ private:
   std::array<uint8_t, 2> sequences_{};
   std::chrono::milliseconds ack_timeout_{0};
   HardwareHealth health_;
+  bool fault_latched_{false};
+  bool fault_stop_attempted_{false};
+  bool fault_stop_succeeded_{false};
+  std::string last_can_error_;
+  std::string stop_reason_{"none"};
+  std::string diagnostic_state_{"inactive"};
+  HardwareHealth::TimePoint last_diagnostics_publish_{};
+  bool diagnostics_published_{false};
+  bool diagnostics_pending_{false};
 
   std::unique_ptr<drivers::socketcan::SocketCanSender> sender_;
   std::unique_ptr<drivers::socketcan::SocketCanReceiver> receiver_;
+  rclcpp::Node::SharedPtr diagnostics_node_;
+  std::unique_ptr<realtime_tools::RealtimePublisher<diagnostic_msgs::msg::DiagnosticArray>>
+    diagnostics_publisher_;
 };
 
 }  // namespace vcan_diffbot_demo

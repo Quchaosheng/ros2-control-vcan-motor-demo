@@ -4,6 +4,7 @@
 ![Ubuntu 22.04](https://img.shields.io/badge/Ubuntu-22.04-E95420?logo=ubuntu&logoColor=white)
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)
 ![License Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-2C8EBB)
+[![ROS 2 Humble CI](https://github.com/Quchaosheng/ros2-control-vcan-motor-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/Quchaosheng/ros2-control-vcan-motor-demo/actions/workflows/ci.yml)
 
 ![Bench manual view of the ros2_control vcan virtual motor demo](docs/assets/readme/hero-bench-manual.svg)
 
@@ -11,6 +12,9 @@ A ROS 2 Humble differential-drive demo that runs a `ros2_control` hardware inter
 virtual motors on SocketCAN. It is small enough to read end to end, but still covers the parts that
 matter in a real driver: command and state interfaces, ACK tracking, encoder feedback, watchdogs,
 safe stopping, receive filters, and deterministic CAN faults.
+
+The live GitHub Actions badge above reports the ROS 2 Humble build and test workflow for this
+repository. The project is licensed under [Apache-2.0](LICENSE).
 
 ## Demo
 
@@ -85,6 +89,24 @@ source install/setup.bash
 ros2 launch vcan_diffbot_demo demo.launch.py
 ```
 
+### Shared launch configuration
+
+`can_interface` and all five configuration values are passed to the hardware through Xacro.
+`can_interface`, `left_node_id`, `right_node_id`, and `encoder_counts_per_revolution` are also
+passed directly to the virtual motor. The hardware carries `command_watchdog_ms` in every command
+frame for the motor to enforce, while
+`feedback_timeout_ms` remains the hardware-side feedback deadline. Keep the corresponding protocol
+values aligned with the physical controller when using hardware CAN.
+
+| Launch argument | Default | Purpose |
+| --- | ---: | --- |
+| `can_interface` | `vcan0` | SocketCAN interface name |
+| `left_node_id` | `1` | Left motor node ID |
+| `right_node_id` | `2` | Right motor node ID |
+| `encoder_counts_per_revolution` | `4096` | Encoder scaling used for wheel position |
+| `command_watchdog_ms` | `200` | Motor-side command watchdog period |
+| `feedback_timeout_ms` | `500` | Hardware-side per-motor feedback deadline |
+
 ### 5. Drive the robot
 
 Open another WSL terminal:
@@ -101,6 +123,17 @@ ros2 topic pub --rate 10 \
 Stop the publisher with `Ctrl+C`. The controller timeout and motor watchdog return both wheel
 velocities to zero.
 
+## Physical CAN / HIL
+
+For a physical SocketCAN adapter, disable the virtual motor and point the launch at `can0`:
+
+```bash
+ros2 launch vcan_diffbot_demo demo.launch.py can_interface:=can0 start_virtual_motor:=false
+```
+
+The physical controller must implement this demo's CAN IDs and byte layouts. Follow the
+[physical SocketCAN bring-up and safety guide](docs/hardware-can.md) before attempting motion.
+
 ## Inspect the demo
 
 Check controller and robot state:
@@ -109,7 +142,15 @@ Check controller and robot state:
 ros2 control list_controllers
 ros2 topic echo /joint_states
 ros2 topic echo /diffbot_base_controller/odom
+ros2 topic echo /diagnostics
 ```
+
+`/diagnostics` publishes one CAN-bus status and one status for each motor.
+
+| Status | Fields to inspect |
+| --- | --- |
+| Bus | `can_interface`, `state`, `last_can_error`, `stop_reason`, `command_watchdog_ms`, `feedback_timeout_ms` |
+| Motor | `node_id`, `feedback_age_ms`, `pending_ack_count`, `last_ack_status`, `wheel_velocity_rad_s`, `ack_timeout`, `feedback_timeout` |
 
 Watch raw CAN traffic:
 
@@ -127,7 +168,8 @@ Normal traffic contains the following identifiers:
 
 ## CAN protocol
 
-All frames use classic 11-bit CAN identifiers, DLC 8, and little-endian multibyte fields.
+Application data frames use classic 11-bit CAN identifiers, DLC 8, and little-endian multibyte
+fields.
 
 ![Byte layout of command, feedback, and ACK CAN frames](docs/assets/readme/can-frame-layout.svg)
 
@@ -162,6 +204,10 @@ The hardware tracks commands until matching ACKs arrive. A rejected, unexpected,
 faults the hardware and sends disabled zero commands to both motors. Feedback loss on either motor
 uses the same safe-stop path.
 
+SocketCAN warning frames are reported in `/diagnostics` and do not stop the stack. BUS-OFF and
+TX-timeout frames are fatal: the hardware clears commands, sends its one safe-stop attempt, latches
+the fault, and returns an error until the hardware is reactivated.
+
 ## Fault injection
 
 Faults are disabled by default. Every-N settings are deterministic, which keeps failures
@@ -182,18 +228,22 @@ ros2 launch vcan_diffbot_demo demo.launch.py \
 | --- | --- |
 | `drop_command_every_n` | Drops every Nth command and its ACK |
 | `drop_feedback_every_n` | Drops every Nth encoder feedback frame |
+| `drop_command_node_id` | Drops every command and ACK for one motor node ID; `0` disables selection |
+| `drop_feedback_node_id` | Drops all feedback for one motor node ID; `0` disables selection |
 | `feedback_delay_ms` | Queues feedback until the configured delay expires |
 | `malformed_feedback_every_n` | Sends every Nth feedback frame with DLC 7 |
 | `error_frame_every_n` | Adds a SocketCAN error frame every Nth feedback frame |
 | `spawn_controllers` | Set to `false` for hardware-only diagnostics |
 
-For example, this command drops all feedback and exercises the hardware timeout:
+For a deterministic one-sided timeout, drop right-motor feedback by node ID:
 
 ```bash
 ros2 launch vcan_diffbot_demo demo.launch.py \
-  drop_feedback_every_n:=1 \
+  drop_feedback_node_id:=2 \
   spawn_controllers:=false
 ```
+
+Use the every-N arguments above for repeatable intermittent command or feedback loss.
 
 ## Tests
 
@@ -205,13 +255,15 @@ colcon test --packages-select vcan_diffbot_demo
 colcon test-result --verbose
 ```
 
-The suite currently contains 42 tests covering:
+The complete CTest suite covers:
 
 - byte-level protocol encoding and validation;
 - motor acceleration, encoder integration, and watchdog behavior;
 - plugin loading, lifecycle safety, ACK health, and CAN filters;
 - raw CAN faults and the complete differential-drive control loop;
 - one-sided feedback loss and bounded safe-stop traffic.
+
+It is expected to finish with zero errors, zero failures, and zero skipped tests.
 
 Launch tests create process-specific virtual CAN interfaces instead of sharing `vcan0`. Creating
 an interface requires root or passwordless non-interactive `sudo`. Each test deletes only the

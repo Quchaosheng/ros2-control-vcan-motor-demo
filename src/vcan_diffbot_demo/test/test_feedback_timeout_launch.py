@@ -29,8 +29,8 @@ def generate_test_description():
         PythonLaunchDescriptionSource(launch_file),
         launch_arguments={
             "can_interface": can_interface,
-            "drop_feedback_every_n": "2",
-            "spawn_controllers": "false",
+            "drop_feedback_node_id": "2",
+            "spawn_controllers": "true",
         }.items(),
     )
     return launch.LaunchDescription([demo, launch_testing.actions.ReadyToTest()]), {
@@ -45,9 +45,10 @@ class TestFeedbackTimeout(unittest.TestCase):
         can_socket.bind((can_interface,))
         can_socket.settimeout(0.2)
 
-        proc_output.assertWaitFor("Feedback timeout for motor node", timeout=10.0)
+        proc_output.assertWaitFor("Feedback timeout for motor node 2", timeout=10.0)
 
         disabled_commands = 0
+        stop_boundary_seen = False
         deadline = time.monotonic() + 1.0
         while time.monotonic() < deadline:
             try:
@@ -59,6 +60,9 @@ class TestFeedbackTimeout(unittest.TestCase):
             sequence, flags, velocity = struct.unpack("<BBh", data[:4])
             if sequence > 5 and flags == 0 and velocity == 0:
                 disabled_commands += 1
+                stop_boundary_seen = True
+            elif stop_boundary_seen:
+                self.assertNotEqual(flags, 1)
 
         self.assertGreaterEqual(disabled_commands, 2)
         self.assertLessEqual(disabled_commands, 4)

@@ -1,0 +1,40 @@
+name: ROS 2 Humble CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: humble
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          rosdep update
+          rosdep install --from-paths src --ignore-src --rosdistro humble -r -y
+      - name: Configure vcan
+        run: |
+          if ! sudo modprobe vcan; then
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)" || sudo apt-get install -y linux-modules-extra-azure
+            sudo modprobe vcan
+          fi
+          sudo ip link add dev vcan0 type vcan || true
+          sudo ip link set up vcan0
+      - name: Build
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build --packages-select vcan_diffbot_demo
+      - name: Test
+        run: |
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          colcon test --packages-select vcan_diffbot_demo --event-handlers console_direct+
+          colcon test-result --verbose
