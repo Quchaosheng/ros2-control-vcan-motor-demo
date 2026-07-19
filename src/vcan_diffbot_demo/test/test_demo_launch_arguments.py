@@ -1,47 +1,68 @@
-import ast
+import importlib.util
 from pathlib import Path
+
+from launch import LaunchContext
+from launch.actions import DeclareLaunchArgument
+from launch.utilities import perform_substitutions
+from launch_ros.actions import Node
 
 
 LAUNCH_FILE = Path(__file__).resolve().parents[1] / "launch" / "demo.launch.py"
 
 
-def test_virtual_motor_can_be_disabled_without_affecting_other_nodes():
-    tree = ast.parse(LAUNCH_FILE.read_text(encoding="utf-8"))
+def load_launch_description():
+    spec = importlib.util.spec_from_file_location("demo_launch", LAUNCH_FILE)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module.generate_launch_description()
 
-    argument_calls = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "DeclareLaunchArgument"
-        and node.args
-        and isinstance(node.args[0], ast.Constant)
-        and node.args[0].value == "start_virtual_motor"
+
+def action_is_enabled(action, start_virtual_motor):
+    context = LaunchContext()
+    context.launch_configurations["start_virtual_motor"] = start_virtual_motor
+    context.launch_configurations["spawn_controllers"] = "true"
+    return action.condition is None or action.condition.evaluate(context)
+
+
+def substitution_text(substitutions):
+    return perform_substitutions(LaunchContext(), substitutions)
+
+
+def test_virtual_motor_can_be_disabled_without_disabling_the_control_stack():
+    description = load_launch_description()
+    arguments = [
+        action
+        for action in description.entities
+        if isinstance(action, DeclareLaunchArgument)
+        and action.name == "start_virtual_motor"
     ]
-    assert len(argument_calls) == 1
-    default_value = next(
-        keyword.value
-        for keyword in argument_calls[0].keywords
-        if keyword.arg == "default_value"
-    )
-    assert isinstance(default_value, ast.Constant)
-    assert default_value.value == "true"
+    assert len(arguments) == 1
+    assert substitution_text(arguments[0].default_value) == "true"
 
+    nodes = [action for action in description.entities if isinstance(action, Node)]
     virtual_motor = next(
+        node for node in nodes if substitution_text(node.node_name) == "virtual_motor"
+    )
+    controller_manager = next(
         node
-        for node in tree.body
-        if isinstance(node, ast.Assign)
-        and any(
-            isinstance(target, ast.Name) and target.id == "virtual_motor"
-            for target in node.targets
-        )
+        for node in nodes
+        if substitution_text(node.node_executable) == "ros2_control_node"
     )
-    node_call = virtual_motor.value
-    condition = next(
-        keyword.value for keyword in node_call.keywords if keyword.arg == "condition"
+    robot_state_publisher = next(
+        node
+        for node in nodes
+        if substitution_text(node.node_executable) == "robot_state_publisher"
     )
-    assert isinstance(condition, ast.Call)
-    assert isinstance(condition.func, ast.Name)
-    assert condition.func.id == "IfCondition"
-    assert isinstance(condition.args[0], ast.Name)
-    assert condition.args[0].id == "start_virtual_motor"
+    controller_spawners = [
+        node
+        for node in nodes
+        if substitution_text(node.node_executable) == "spawner"
+    ]
+    assert len(controller_spawners) == 2
+
+    assert action_is_enabled(virtual_motor, "true")
+    assert not action_is_enabled(virtual_motor, "false")
+    for action in [controller_manager, robot_state_publisher, *controller_spawners]:
+        assert action_is_enabled(action, "true")
+        assert action_is_enabled(action, "false")
