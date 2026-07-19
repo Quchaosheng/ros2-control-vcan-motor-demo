@@ -24,6 +24,7 @@ def generate_launch_description():
     feedback_delay_ms = LaunchConfiguration("feedback_delay_ms")
     malformed_feedback_every_n = LaunchConfiguration("malformed_feedback_every_n")
     error_frame_every_n = LaunchConfiguration("error_frame_every_n")
+    start_virtual_motor = LaunchConfiguration("start_virtual_motor")
     spawn_controllers = LaunchConfiguration("spawn_controllers")
 
     package_share = FindPackageShare("vcan_diffbot_demo")
@@ -65,6 +66,7 @@ def generate_launch_description():
         executable="virtual_motor_node",
         name="virtual_motor",
         output="screen",
+        condition=IfCondition(start_virtual_motor),
         parameters=[
             motor_parameters,
             {
@@ -159,6 +161,7 @@ def generate_launch_description():
         DeclareLaunchArgument("feedback_delay_ms", default_value="0"),
         DeclareLaunchArgument("malformed_feedback_every_n", default_value="0"),
         DeclareLaunchArgument("error_frame_every_n", default_value="0"),
+        DeclareLaunchArgument("start_virtual_motor", default_value="true"),
         DeclareLaunchArgument("spawn_controllers", default_value="true"),
     ]
     return LaunchDescription(
