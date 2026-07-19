@@ -33,6 +33,8 @@ candump -tz can0
 In Terminal B, source the workspace and run:
 
 ```bash
+source /opt/ros/humble/setup.bash
+source install/setup.bash
 ros2 launch vcan_diffbot_demo demo.launch.py can_interface:=can0 start_virtual_motor:=false
 ```
 
