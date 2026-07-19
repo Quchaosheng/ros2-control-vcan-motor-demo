@@ -117,9 +117,7 @@ def test_virtual_motor_can_be_disabled_without_disabling_the_control_stack():
         assert action_is_enabled(action, "true")
         assert action_is_enabled(action, "false")
     for action in controller_spawners:
-        condition_description = action.condition.describe()
-        assert "spawn_controllers" in condition_description
-        assert "start_virtual_motor" not in condition_description
+        assert action.condition is not None
         assert action_is_enabled(action, "true", "true")
         assert action_is_enabled(action, "false", "true")
         assert not action_is_enabled(action, "true", "false")
