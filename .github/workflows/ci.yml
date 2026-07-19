@@ -21,7 +21,11 @@ jobs:
           rosdep install --from-paths src --ignore-src --rosdistro humble -r -y
       - name: Configure vcan
         run: |
-          sudo modprobe vcan
+          if ! sudo modprobe vcan; then
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)" || sudo apt-get install -y linux-modules-extra-azure
+            sudo modprobe vcan
+          fi
           sudo ip link add dev vcan0 type vcan || true
           sudo ip link set up vcan0
       - name: Build
