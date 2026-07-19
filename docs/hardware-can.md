@@ -17,8 +17,28 @@ sudo ip link set can0 down 2>/dev/null || true
 sudo ip link set can0 type can bitrate 500000 restart-ms 100
 sudo ip link set can0 up
 ip -details -statistics link show can0
+```
+
+### Terminal A: monitor the bus / 终端 A：监视总线
+
+Run the following command in Terminal A and leave it running in the background
+while the stack is launched from Terminal B:
+
+```bash
 candump -tz can0
+```
+
+### Terminal B: launch the control stack / 终端 B：启动控制栈
+
+In Terminal B, source the workspace and run:
+
+```bash
 ros2 launch vcan_diffbot_demo demo.launch.py can_interface:=can0 start_virtual_motor:=false
+```
+
+After stopping the ROS launch and `candump`, bring the interface down:
+
+```bash
 sudo ip link set can0 down
 ```
 

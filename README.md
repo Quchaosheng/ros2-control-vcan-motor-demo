@@ -102,6 +102,17 @@ ros2 topic pub --rate 10 \
 Stop the publisher with `Ctrl+C`. The controller timeout and motor watchdog return both wheel
 velocities to zero.
 
+## Physical CAN / HIL
+
+For a physical SocketCAN adapter, disable the virtual motor and point the launch at `can0`:
+
+```bash
+ros2 launch vcan_diffbot_demo demo.launch.py can_interface:=can0 start_virtual_motor:=false
+```
+
+The physical controller must implement this demo's CAN IDs and byte layouts. Follow the
+[physical SocketCAN bring-up and safety guide](docs/hardware-can.md) before attempting motion.
+
 ## Inspect the demo
 
 Check controller and robot state:
