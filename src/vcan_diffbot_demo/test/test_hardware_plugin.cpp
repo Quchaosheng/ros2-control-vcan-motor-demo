@@ -89,3 +89,10 @@ TEST_F(CanMotorHardwareTest, ReportsDeactivationFailureWithoutSender)
   const rclcpp_lifecycle::State state;
   EXPECT_EQ(hardware.on_deactivate(state), hardware_interface::CallbackReturn::ERROR);
 }
+
+TEST_F(CanMotorHardwareTest, ReportsShutdownFailureWithoutSender)
+{
+  vcan_diffbot_demo::CanMotorHardware hardware;
+  const rclcpp_lifecycle::State state;
+  EXPECT_EQ(hardware.on_shutdown(state), hardware_interface::CallbackReturn::ERROR);
+}

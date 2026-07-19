@@ -202,17 +202,22 @@ hardware_interface::CallbackReturn CanMotorHardware::on_activate(
     health_.reset(now);
     last_can_error_ = "none";
     stop_reason_ = "none";
-    if (!send_safe_stop()) {
+    fault_stop_attempted_ = true;
+    fault_stop_succeeded_ = send_safe_stop();
+    if (!fault_stop_succeeded_) {
       throw std::runtime_error("failed to send activation safe stop");
     }
-    fatal_fault_latched_ = false;
+    fault_latched_ = false;
+    fault_stop_attempted_ = false;
+    fault_stop_succeeded_ = false;
     diagnostic_state_ = "active";
   } catch (const std::exception & error) {
     RCLCPP_ERROR(logger_, "Failed to activate CAN hardware on %s: %s",
       can_interface_.c_str(), error.what());
     sender_.reset();
     receiver_.reset();
-    diagnostic_state_ = "inactive";
+    fault_latched_ = true;
+    diagnostic_state_ = "safe_stop";
     last_can_error_ = error.what();
     stop_reason_ = "activation_failed";
     publish_diagnostics(true);
@@ -227,22 +232,19 @@ hardware_interface::CallbackReturn CanMotorHardware::on_activate(
 hardware_interface::CallbackReturn CanMotorHardware::on_deactivate(
   const rclcpp_lifecycle::State &)
 {
-  commands_.fill(0.0);
-  const bool stopped = health_.stop_sent() || send_safe_stop();
-  receiver_.reset();
-  sender_.reset();
-  diagnostic_state_ = (fatal_fault_latched_ || stop_reason_ != "none") ?
-    "safe_stop" : "inactive";
-  publish_diagnostics(true);
-  flush_pending_diagnostics();
-  return stopped ? hardware_interface::CallbackReturn::SUCCESS :
-         hardware_interface::CallbackReturn::ERROR;
+  return stop_and_release();
+}
+
+hardware_interface::CallbackReturn CanMotorHardware::on_shutdown(
+  const rclcpp_lifecycle::State &)
+{
+  return stop_and_release();
 }
 
 hardware_interface::return_type CanMotorHardware::read(
   const rclcpp::Time &, const rclcpp::Duration &)
 {
-  if (fatal_fault_latched_) {
+  if (fault_latched_) {
     publish_diagnostics(true);
     return hardware_interface::return_type::ERROR;
   }
@@ -278,7 +280,7 @@ hardware_interface::return_type CanMotorHardware::read(
           "can_bus_off" : "can_tx_timeout";
         RCLCPP_ERROR(logger_, "Fatal SocketCAN error: %s", last_can_error_.c_str());
         commands_.fill(0.0);
-        fatal_fault_latched_ = true;
+        fault_latched_ = true;
         diagnostic_state_ = "safe_stop";
         attempt_fault_safe_stop();
         publish_diagnostics(true);
@@ -336,6 +338,7 @@ hardware_interface::return_type CanMotorHardware::read(
     if (stop_reason_ == "none") {
       stop_reason_ = "can_receive_error";
     }
+    fault_latched_ = true;
     diagnostic_state_ = "safe_stop";
     attempt_fault_safe_stop();
     publish_diagnostics(true);
@@ -343,7 +346,6 @@ hardware_interface::return_type CanMotorHardware::read(
   }
 
   const auto now = std::chrono::steady_clock::now();
-  health_.recover_if_healthy(now, feedback_timeout_, ack_timeout_);
   bool fault = health_.ack_fault();
   for (std::size_t index = 0; index < node_ids_.size(); ++index) {
     if (health_.feedback_timed_out(index, now, feedback_timeout_)) {
@@ -368,6 +370,7 @@ hardware_interface::return_type CanMotorHardware::read(
 
   if (fault) {
     commands_.fill(0.0);
+    fault_latched_ = true;
     diagnostic_state_ = "safe_stop";
     attempt_fault_safe_stop();
     publish_diagnostics(true);
@@ -380,7 +383,7 @@ hardware_interface::return_type CanMotorHardware::read(
 hardware_interface::return_type CanMotorHardware::write(
   const rclcpp::Time &, const rclcpp::Duration &)
 {
-  if (fatal_fault_latched_) {
+  if (fault_latched_) {
     publish_diagnostics(true);
     return hardware_interface::return_type::ERROR;
   }
@@ -394,6 +397,7 @@ hardware_interface::return_type CanMotorHardware::write(
       if (stop_reason_ == "none") {
         stop_reason_ = "can_send_error";
       }
+      fault_latched_ = true;
       diagnostic_state_ = "safe_stop";
       attempt_fault_safe_stop();
       publish_diagnostics(true);
@@ -451,17 +455,34 @@ bool CanMotorHardware::send_safe_stop()
 
 bool CanMotorHardware::attempt_fault_safe_stop()
 {
-  if (health_.stop_sent()) {
-    return true;
+  if (fault_stop_attempted_) {
+    return fault_stop_succeeded_;
   }
 
+  fault_stop_attempted_ = true;
   health_.mark_stop_sent();
-  if (send_safe_stop()) {
+  fault_stop_succeeded_ = send_safe_stop();
+  if (fault_stop_succeeded_) {
     return true;
   }
 
   RCLCPP_ERROR(logger_, "Failed to send complete safe stop");
   return false;
+}
+
+hardware_interface::CallbackReturn CanMotorHardware::stop_and_release()
+{
+  commands_.fill(0.0);
+  const bool stopped = fault_latched_ ?
+    (fault_stop_attempted_ ? fault_stop_succeeded_ : attempt_fault_safe_stop()) :
+    send_safe_stop();
+  receiver_.reset();
+  sender_.reset();
+  diagnostic_state_ = fault_latched_ ? "safe_stop" : "inactive";
+  publish_diagnostics(true);
+  flush_pending_diagnostics();
+  return stopped ? hardware_interface::CallbackReturn::SUCCESS :
+         hardware_interface::CallbackReturn::ERROR;
 }
 
 void CanMotorHardware::publish_diagnostics(const bool force)
