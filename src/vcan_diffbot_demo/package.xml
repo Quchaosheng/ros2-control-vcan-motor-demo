@@ -10,10 +10,12 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <depend>diagnostic_msgs</depend>
   <depend>hardware_interface</depend>
   <depend>pluginlib</depend>
   <depend>rclcpp</depend>
   <depend>rclcpp_lifecycle</depend>
+  <depend>realtime_tools</depend>
   <depend>ros2_socketcan</depend>
 
   <exec_depend>controller_manager</exec_depend>
