@@ -102,5 +102,10 @@ Bring the interface down, fix the physical bus fault or bitrate mismatch, then
 bring it up again. `restart-ms 100` enables automatic restart after a bus-off,
 but it does not correct wiring, termination, or configuration faults.
 
+Bringing CAN back up does not clear the hardware fault latch. Reactivate the
+hardware or relaunch the stack before commanding the motors again.
+
 先关闭接口，修复物理总线故障或比特率不匹配，再重新启用接口。`restart-ms 100` 会在
 bus-off 后自动重启，但不能修复布线、终端电阻或配置错误。
+
+重新启用 CAN 不会清除硬件故障锁存。再次发送电机命令前，请重新激活硬件或重新启动系统。

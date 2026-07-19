@@ -34,6 +34,8 @@ public:
     const rclcpp_lifecycle::State & previous_state) override;
   hardware_interface::CallbackReturn on_deactivate(
     const rclcpp_lifecycle::State & previous_state) override;
+  hardware_interface::CallbackReturn on_shutdown(
+    const rclcpp_lifecycle::State & previous_state) override;
 
   hardware_interface::return_type read(
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
@@ -45,6 +47,7 @@ private:
     std::size_t index, bool enabled, double velocity_rad_s, bool track_ack = true);
   bool send_safe_stop();
   bool attempt_fault_safe_stop();
+  hardware_interface::CallbackReturn stop_and_release();
   void publish_diagnostics(bool force = false);
   void flush_pending_diagnostics();
 
@@ -61,7 +64,9 @@ private:
   std::array<uint8_t, 2> sequences_{};
   std::chrono::milliseconds ack_timeout_{0};
   HardwareHealth health_;
-  bool fatal_fault_latched_{false};
+  bool fault_latched_{false};
+  bool fault_stop_attempted_{false};
+  bool fault_stop_succeeded_{false};
   std::string last_can_error_;
   std::string stop_reason_{"none"};
   std::string diagnostic_state_{"inactive"};
