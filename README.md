@@ -269,11 +269,6 @@ Launch tests create process-specific virtual CAN interfaces instead of sharing `
 an interface requires root or passwordless non-interactive `sudo`. Each test deletes only the
 interface it created.
 
-## Learning guide
-
-The Chinese [project learning and technical review guide](docs/learning-guide.zh-CN.md) covers the control
-loop, module boundaries, CAN protocol, safety design, run commands, and 20 high-ROI questions.
-
 ## Project layout
 
 ```text
