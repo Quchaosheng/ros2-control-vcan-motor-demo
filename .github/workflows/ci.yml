@@ -28,6 +28,8 @@ jobs:
           fi
           sudo ip link add dev vcan0 type vcan || true
           sudo ip link set up vcan0
+      - name: Check bilingual documentation
+        run: python3 tests/test_docs.py
       - name: Build
         run: |
           source /opt/ros/humble/setup.bash
