@@ -162,6 +162,9 @@ Watch raw CAN traffic:
 candump -L vcan0
 ```
 
+For a reproducible capture manifest and a deliberately virtual-only replay
+artifact, follow [CAN capture, audit, and vcan replay](docs/can-trace-regression.md).
+
 Normal traffic contains the following identifiers:
 
 | Direction | Left | Right | Payload |

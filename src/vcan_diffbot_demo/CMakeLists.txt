@@ -40,7 +40,11 @@ pluginlib_export_plugin_description_file(hardware_interface vcan_diffbot_demo.xm
 
 install(DIRECTORY config launch urdf DESTINATION share/${PROJECT_NAME} OPTIONAL)
 install(DIRECTORY include/ DESTINATION include)
-install(PROGRAMS scripts/setup_vcan.sh DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS
+  scripts/setup_vcan.sh
+  scripts/can_trace_audit.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 install(TARGETS vcan_diffbot_hardware
   EXPORT export_vcan_diffbot_hardware
   ARCHIVE DESTINATION lib
@@ -75,6 +79,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_urdf_xacro test/test_urdf_xacro.py)
   ament_add_pytest_test(test_demo_launch_arguments test/test_demo_launch_arguments.py)
   ament_add_pytest_test(test_vcan_test_utils test/test_vcan_test_utils.py)
+  ament_add_pytest_test(test_can_trace_audit test/test_can_trace_audit.py)
 
   ament_add_gtest(test_hardware_plugin test/test_hardware_plugin.cpp)
   ament_target_dependencies(test_hardware_plugin hardware_interface pluginlib rclcpp)
