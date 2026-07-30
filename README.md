@@ -10,10 +10,11 @@
 
 ![Bench manual view of the ros2_control vcan virtual motor demo](docs/assets/readme/hero-bench-manual.svg)
 
-A ROS 2 Humble differential-drive demo that runs a `ros2_control` hardware interface against two
-virtual motors on SocketCAN. It is small enough to read end to end, but still covers the parts that
-matter in a real driver: command and state interfaces, ACK tracking, encoder feedback, watchdogs,
-safe stopping, receive filters, and deterministic CAN faults.
+A ROS 2 Humble differential-drive control integration that operates two virtual
+motors over SocketCAN through a `ros2_control` hardware interface. It
+implements command and state interfaces, ACK tracking, encoder feedback,
+watchdogs, safe stopping, receive filters, and deterministic CAN fault
+injection.
 
 The live GitHub Actions badge above reports the ROS 2 Humble build and test workflow for this
 repository. The project is licensed under [Apache-2.0](LICENSE).
@@ -22,8 +23,9 @@ repository. The project is licensed under [Apache-2.0](LICENSE).
 
 [![Recorded vcan DiffBot run with CAN and safety telemetry](docs/demo/vcan_diffbot_demo.gif)](docs/demo/vcan_diffbot_demo.mp4)
 
-The recording shows a normal closed loop followed by a real one-sided feedback timeout and the
-disabled zero commands used to stop both motors. [Open the full MP4](docs/demo/vcan_diffbot_demo.mp4).
+The recording shows a normal closed loop followed by a deliberate one-sided
+feedback timeout and the disabled zero commands used to stop both motors.
+[Open the full MP4](docs/demo/vcan_diffbot_demo.mp4).
 
 ## What is included
 

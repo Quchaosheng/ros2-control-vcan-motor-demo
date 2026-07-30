@@ -7,16 +7,17 @@
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)
 [![ROS 2 Humble CI](https://github.com/Quchaosheng/ros2-control-vcan-motor-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/Quchaosheng/ros2-control-vcan-motor-demo/actions/workflows/ci.yml)
 
-这是一个 ROS 2 Humble 差速底盘演示：通过 SocketCAN，让 `ros2_control` 硬件接口
-驱动两个虚拟电机。项目规模小、可从头读完，同时覆盖真实驱动需要的关键问题：
-命令和状态接口、ACK 跟踪、编码器反馈、看门狗、安全停机、接收过滤器和确定性
-CAN 故障注入。项目使用 Apache-2.0 许可证。
+这是一个基于 ROS 2 Humble 的差速驱动控制集成，通过 SocketCAN 让
+`ros2_control` 硬件接口控制两台虚拟电机。它实现命令和状态接口、ACK 跟踪、
+编码器反馈、看门狗、安全停机、接收过滤器和可重复的 CAN 故障注入。项目使用
+Apache-2.0 许可证。
 
 ## 演示
 
 [![vcan DiffBot 运行记录](docs/demo/vcan_diffbot_demo.gif)](docs/demo/vcan_diffbot_demo.mp4)
 
-视频先展示正常闭环，再展示单侧反馈超时，以及用于停止两个电机的禁用零速度命令。
+视频先展示正常闭环，再展示由故障注入触发的单侧反馈超时，以及用于停止两个
+电机的禁用零速度命令。
 [打开完整 MP4](docs/demo/vcan_diffbot_demo.mp4)。
 
 ## 组件
