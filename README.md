@@ -11,7 +11,10 @@
 ![Bench manual view of the ros2_control vcan virtual motor demo](docs/assets/readme/hero-bench-manual.svg)
 
 A ROS 2 Humble differential-drive control integration that operates two virtual
-motors over SocketCAN through a `ros2_control` hardware interface. It
+motors over SocketCAN through a `ros2_control` hardware interface. Wheel state is
+exposed to `diff_drive_controller`, which owns differential-drive kinematics and
+odometry publication; this repository does not implement a separate odometry
+estimator. It
 implements command and state interfaces, ACK tracking, encoder feedback,
 watchdogs, safe stopping, receive filters, and deterministic CAN fault
 injection.
@@ -51,6 +54,10 @@ used as a bridge for CAN traffic.
 
 The tested environment is WSL2 with Ubuntu 22.04 and ROS 2 Humble installed at
 `/opt/ros/humble`.
+
+ROS 2 Humble on Ubuntu 22.04 is the supported and tested release combination for
+this demo. Other ROS 2 or Ubuntu releases may require dependency, API, or launch
+file changes and are not claimed as validated by this README.
 
 ```bash
 sudo apt-get update
@@ -162,9 +169,6 @@ Watch raw CAN traffic:
 candump -L vcan0
 ```
 
-For a reproducible capture manifest and a deliberately virtual-only replay
-artifact, follow [CAN capture, audit, and vcan replay](docs/can-trace-regression.md).
-
 Normal traffic contains the following identifiers:
 
 | Direction | Left | Right | Payload |
@@ -210,6 +214,20 @@ fields.
 The hardware tracks commands until matching ACKs arrive. A rejected, unexpected, or missing ACK
 faults the hardware and sends disabled zero commands to both motors. Feedback loss on either motor
 uses the same safe-stop path.
+
+### Timing semantics and integration risk
+
+The ACK deadline and `command_watchdog_ms` protect different parts of the command path. The ACK
+deadline is a host-side transport/protocol health check: it expects a matching acknowledgment for
+an outstanding command. `command_watchdog_ms` is carried in the command frame and is enforced by
+the virtual motor when fresh commands stop arriving. They must not be treated as interchangeable
+timeouts.
+
+The current behavior is demonstrated against the included virtual motor. On a physical controller,
+ACK timing, command scheduling, bus load, clock granularity, and watchdog semantics may differ.
+Before motion, verify the controller's exact ACK contract and choose deadlines that preserve enough
+margin for worst-case scheduling and CAN traffic. A successful `vcan` run does not establish those
+hardware timing margins.
 
 SocketCAN warning frames are reported in `/diagnostics` and do not stop the stack. BUS-OFF and
 TX-timeout frames are fatal: the hardware clears commands, sends its one safe-stop attempt, latches
@@ -320,6 +338,10 @@ This repository validates the software control contract, SocketCAN transport, st
 watchdogs, and safe-stop behavior. `vcan` does not model physical motor loads, electrical CAN
 faults, arbitration timing, encoder noise, or production safety certification. Those require real
 hardware, bus instrumentation, calibration, and system-level safety analysis.
+
+Odometry shown by the demo is produced by `diff_drive_controller` from the wheel state reported by
+the hardware interface. The demo validates that integration path, but it does not validate odometry
+accuracy under wheel slip, calibration error, uneven terrain, delayed feedback, or encoder noise.
 
 ## References
 
