@@ -23,6 +23,7 @@ hardware_interface::HardwareInfo make_hardware_info()
     {"right_node_id", "2"},
     {"encoder_counts_per_revolution", "4096"},
     {"command_watchdog_ms", "200"},
+    {"ack_timeout_ms", "300"},
     {"feedback_timeout_ms", "500"},
   };
 
@@ -95,4 +96,13 @@ TEST_F(CanMotorHardwareTest, ReportsShutdownFailureWithoutSender)
   vcan_diffbot_demo::CanMotorHardware hardware;
   const rclcpp_lifecycle::State state;
   EXPECT_EQ(hardware.on_shutdown(state), hardware_interface::CallbackReturn::ERROR);
+}
+
+TEST_F(CanMotorHardwareTest, RejectsInvalidAckTimeout)
+{
+  auto info = make_hardware_info();
+  info.hardware_parameters["ack_timeout_ms"] = "invalid";
+  vcan_diffbot_demo::CanMotorHardware hardware;
+
+  EXPECT_EQ(hardware.on_init(info), hardware_interface::CallbackReturn::ERROR);
 }

@@ -99,6 +99,7 @@ public:
 
   uint8_t status() const
   {
+    // Bit 0: enabled; bit 1: watchdog stopped; bit 2: protocol fault.
     uint8_t status = enabled_ ? 0x01U : 0x00U;
     if (watchdog_stopped_) {
       status |= 0x02U;

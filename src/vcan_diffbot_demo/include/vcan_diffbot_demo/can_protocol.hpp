@@ -66,6 +66,7 @@ inline void put_i16(FrameData & data, const std::size_t offset, const int16_t va
 
 inline void put_i32(FrameData & data, const std::size_t offset, const int32_t value)
 {
+  // Protocol integers are little-endian; feedback encoder_count occupies bytes 4..7.
   const auto raw = static_cast<uint32_t>(value);
   for (std::size_t index = 0; index < 4; ++index) {
     data[offset + index] = static_cast<uint8_t>((raw >> (8U * index)) & 0xffU);
@@ -86,6 +87,7 @@ inline int16_t get_i16(const FrameData & data, const std::size_t offset)
 
 inline int32_t get_i32(const FrameData & data, const std::size_t offset)
 {
+  // Protocol integers are little-endian; feedback encoder_count occupies bytes 4..7.
   uint32_t raw = 0;
   for (std::size_t index = 0; index < 4; ++index) {
     raw |= static_cast<uint32_t>(data[offset + index]) << (8U * index);

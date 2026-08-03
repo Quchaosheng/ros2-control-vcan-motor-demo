@@ -21,6 +21,15 @@ STATUS_NAMES = {
     "vcan_diffbot/left_motor",
     "vcan_diffbot/right_motor",
 }
+BUS_KEYS = {
+    "can_interface",
+    "state",
+    "last_can_error",
+    "stop_reason",
+    "command_watchdog_ms",
+    "ack_timeout_ms",
+    "feedback_timeout_ms",
+}
 MOTOR_KEYS = {
     "node_id",
     "feedback_age_ms",
@@ -43,6 +52,7 @@ def generate_test_description():
         launch_arguments={
             "can_interface": can_interface,
             "drop_feedback_node_id": "2",
+            "ack_timeout_ms": "350",
             "feedback_timeout_ms": "3000",
             "spawn_controllers": "false",
         }.items(),
@@ -89,7 +99,12 @@ class TestDiagnostics(unittest.TestCase):
             if set(statuses) != STATUS_NAMES:
                 return False
             bus = statuses["vcan_diffbot/can_bus"]
-            return bus.level == DiagnosticStatus.OK and self.values(bus).get("state") == "active"
+            bus_values = self.values(bus)
+            return (
+                bus.level == DiagnosticStatus.OK
+                and bus_values.get("state") == "active"
+                and bus_values.get("ack_timeout_ms") == "350"
+            )
 
         healthy_message = self.wait_for(healthy, 10.0)
         self.assertEqual(set(self.statuses(healthy_message)), STATUS_NAMES)
@@ -115,6 +130,7 @@ class TestDiagnostics(unittest.TestCase):
 
         fault_message = self.wait_for(feedback_timeout, 10.0)
         statuses = self.statuses(fault_message)
+        self.assertEqual(set(self.values(statuses["vcan_diffbot/can_bus"])), BUS_KEYS)
         left_values = self.values(statuses["vcan_diffbot/left_motor"])
         right_values = self.values(statuses["vcan_diffbot/right_motor"])
         self.assertEqual(set(left_values), MOTOR_KEYS)
