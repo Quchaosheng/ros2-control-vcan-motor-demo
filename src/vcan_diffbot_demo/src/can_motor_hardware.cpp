@@ -137,7 +137,8 @@ hardware_interface::CallbackReturn CanMotorHardware::on_init(
       throw std::invalid_argument("command_watchdog_ms is too large");
     }
     command_watchdog_ms_ = static_cast<uint16_t>(watchdog);
-    ack_timeout_ = std::chrono::milliseconds(command_watchdog_ms_);
+    ack_timeout_ = std::chrono::milliseconds(parse_positive(
+        info_.hardware_parameters.at("ack_timeout_ms"), "ack_timeout_ms"));
 
     feedback_timeout_ = std::chrono::milliseconds(parse_positive(
         info_.hardware_parameters.at("feedback_timeout_ms"), "feedback_timeout_ms"));
@@ -150,7 +151,7 @@ hardware_interface::CallbackReturn CanMotorHardware::on_init(
         "/diagnostics", 10));
     auto & diagnostic_message = diagnostics_publisher_->msg_;
     diagnostic_message.status.resize(3U);
-    diagnostic_message.status[0].values.resize(6U);
+    diagnostic_message.status[0].values.resize(7U);
     diagnostic_message.status[1].values.resize(7U);
     diagnostic_message.status[2].values.resize(7U);
   } catch (const std::exception & error) {
@@ -262,7 +263,7 @@ hardware_interface::return_type CanMotorHardware::read(
   }
 
   try {
-    for (std::size_t count = 0; count < 64U; ++count) {
+    for (std::size_t count = 0; count < kMaxFramesPerRead; ++count) {
       protocol::FrameData data{};
       drivers::socketcan::CanId can_id;
       try {
@@ -549,7 +550,8 @@ void CanMotorHardware::publish_diagnostics(const bool force)
   set_key(bus, 2U, "last_can_error", last_can_error_.empty() ? "none" : last_can_error_);
   set_key(bus, 3U, "stop_reason", stop_reason_.empty() ? "none" : stop_reason_);
   set_key(bus, 4U, "command_watchdog_ms", std::to_string(command_watchdog_ms_));
-  set_key(bus, 5U, "feedback_timeout_ms", std::to_string(feedback_timeout_.count()));
+  set_key(bus, 5U, "ack_timeout_ms", std::to_string(ack_timeout_.count()));
+  set_key(bus, 6U, "feedback_timeout_ms", std::to_string(feedback_timeout_.count()));
 
   for (std::size_t index = 0; index < node_ids_.size(); ++index) {
     ack_timeouts[index] = monitoring && health_.ack_timed_out(index, now, ack_timeout_);

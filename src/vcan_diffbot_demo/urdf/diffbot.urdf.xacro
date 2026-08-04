@@ -5,6 +5,7 @@
   <xacro:arg name="right_node_id" default="2"/>
   <xacro:arg name="encoder_counts_per_revolution" default="4096"/>
   <xacro:arg name="command_watchdog_ms" default="200"/>
+  <xacro:arg name="ack_timeout_ms" default="200"/>
   <xacro:arg name="feedback_timeout_ms" default="500"/>
   <xacro:property name="wheel_radius" value="0.10"/>
   <xacro:property name="wheel_width" value="0.05"/>
@@ -93,5 +94,6 @@
     right_node_id="$(arg right_node_id)"
     encoder_counts_per_revolution="$(arg encoder_counts_per_revolution)"
     command_watchdog_ms="$(arg command_watchdog_ms)"
+    ack_timeout_ms="$(arg ack_timeout_ms)"
     feedback_timeout_ms="$(arg feedback_timeout_ms)"/>
 </robot>

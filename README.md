@@ -18,6 +18,10 @@ safe stopping, receive filters, and deterministic CAN faults.
 The live GitHub Actions badge above reports the ROS 2 Humble build and test workflow for this
 repository. The project is licensed under [Apache-2.0](LICENSE).
 
+Development uses a human-reviewed workflow with AI-assisted implementation and testing. The
+published `master` history is normalized to the project maintainer's identity; generated work
+branches and local tooling artifacts are not part of the public repository.
+
 ## Demo
 
 [![Recorded vcan DiffBot run with CAN and safety telemetry](docs/demo/vcan_diffbot_demo.gif)](docs/demo/vcan_diffbot_demo.mp4)
@@ -93,12 +97,12 @@ ros2 launch vcan_diffbot_demo demo.launch.py
 
 ### Shared launch configuration
 
-`can_interface` and all five configuration values are passed to the hardware through Xacro.
+`can_interface` and all six configuration values are passed to the hardware through Xacro.
 `can_interface`, `left_node_id`, `right_node_id`, and `encoder_counts_per_revolution` are also
 passed directly to the virtual motor. The hardware carries `command_watchdog_ms` in every command
-frame for the motor to enforce, while
-`feedback_timeout_ms` remains the hardware-side feedback deadline. Keep the corresponding protocol
-values aligned with the physical controller when using hardware CAN.
+frame for the motor to enforce. `ack_timeout_ms` is the hardware-side deadline for command ACKs,
+while `feedback_timeout_ms` remains the per-motor feedback deadline. Keep the corresponding
+protocol values aligned with the physical controller when using hardware CAN.
 
 | Launch argument | Default | Purpose |
 | --- | ---: | --- |
@@ -107,6 +111,7 @@ values aligned with the physical controller when using hardware CAN.
 | `right_node_id` | `2` | Right motor node ID |
 | `encoder_counts_per_revolution` | `4096` | Encoder scaling used for wheel position |
 | `command_watchdog_ms` | `200` | Motor-side command watchdog period |
+| `ack_timeout_ms` | `200` | Hardware-side command ACK deadline |
 | `feedback_timeout_ms` | `500` | Hardware-side per-motor feedback deadline |
 
 ### 5. Drive the robot
@@ -151,7 +156,7 @@ ros2 topic echo /diagnostics
 
 | Status | Fields to inspect |
 | --- | --- |
-| Bus | `can_interface`, `state`, `last_can_error`, `stop_reason`, `command_watchdog_ms`, `feedback_timeout_ms` |
+| Bus | `can_interface`, `state`, `last_can_error`, `stop_reason`, `command_watchdog_ms`, `ack_timeout_ms`, `feedback_timeout_ms` |
 | Motor | `node_id`, `feedback_age_ms`, `pending_ack_count`, `last_ack_status`, `wheel_velocity_rad_s`, `ack_timeout`, `feedback_timeout` |
 
 Watch raw CAN traffic:

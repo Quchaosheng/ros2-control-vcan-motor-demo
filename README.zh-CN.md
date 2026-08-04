@@ -84,6 +84,7 @@ ros2 launch vcan_diffbot_demo demo.launch.py
 | `right_node_id` | `2` | 右电机节点 ID |
 | `encoder_counts_per_revolution` | `4096` | 轮子位置的编码器缩放 |
 | `command_watchdog_ms` | `200` | 电机侧命令看门狗周期 |
+| `ack_timeout_ms` | `200` | ACK 回复的硬件侧截止时间 |
 | `feedback_timeout_ms` | `500` | 硬件侧单电机反馈截止时间 |
 
 ### 5. 驱动机器人

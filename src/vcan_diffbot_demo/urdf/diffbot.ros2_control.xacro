@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:macro name="vcan_diffbot_ros2_control" params="name can_interface left_node_id right_node_id encoder_counts_per_revolution command_watchdog_ms feedback_timeout_ms">
+  <xacro:macro name="vcan_diffbot_ros2_control" params="name can_interface left_node_id right_node_id encoder_counts_per_revolution command_watchdog_ms ack_timeout_ms feedback_timeout_ms">
     <ros2_control name="${name}" type="system">
       <hardware>
         <plugin>vcan_diffbot_demo/CanMotorHardware</plugin>
@@ -9,6 +9,7 @@
         <param name="right_node_id">${right_node_id}</param>
         <param name="encoder_counts_per_revolution">${encoder_counts_per_revolution}</param>
         <param name="command_watchdog_ms">${command_watchdog_ms}</param>
+        <param name="ack_timeout_ms">${ack_timeout_ms}</param>
         <param name="feedback_timeout_ms">${feedback_timeout_ms}</param>
       </hardware>
 
