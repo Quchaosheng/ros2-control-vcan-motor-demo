@@ -17,6 +17,7 @@ def test_diffbot_xacro_contains_can_hardware_and_two_wheels():
     assert '<param name="right_node_id">2</param>' in xml
     assert '<param name="encoder_counts_per_revolution">4096</param>' in xml
     assert '<param name="command_watchdog_ms">200</param>' in xml
+    assert '<param name="ack_timeout_ms">200</param>' in xml
     assert '<param name="feedback_timeout_ms">500</param>' in xml
 
 
@@ -32,6 +33,7 @@ def test_diffbot_xacro_passes_shared_can_configuration():
             "right_node_id:=23",
             "encoder_counts_per_revolution:=8192",
             "command_watchdog_ms:=350",
+            "ack_timeout_ms:=275",
             "feedback_timeout_ms:=900",
         ],
         text=True,
@@ -42,4 +44,5 @@ def test_diffbot_xacro_passes_shared_can_configuration():
     assert '<param name="right_node_id">23</param>' in xml
     assert '<param name="encoder_counts_per_revolution">8192</param>' in xml
     assert '<param name="command_watchdog_ms">350</param>' in xml
+    assert '<param name="ack_timeout_ms">275</param>' in xml
     assert '<param name="feedback_timeout_ms">900</param>' in xml

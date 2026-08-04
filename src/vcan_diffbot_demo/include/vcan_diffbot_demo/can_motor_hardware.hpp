@@ -43,6 +43,8 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 private:
+  static constexpr std::size_t kMaxFramesPerRead = 64U;
+
   bool send_command(
     std::size_t index, bool enabled, double velocity_rad_s, bool track_ack = true);
   bool send_safe_stop();

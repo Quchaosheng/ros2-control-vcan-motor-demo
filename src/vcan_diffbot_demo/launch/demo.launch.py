@@ -16,6 +16,7 @@ def generate_launch_description():
         "encoder_counts_per_revolution"
     )
     command_watchdog_ms = LaunchConfiguration("command_watchdog_ms")
+    ack_timeout_ms = LaunchConfiguration("ack_timeout_ms")
     feedback_timeout_ms = LaunchConfiguration("feedback_timeout_ms")
     drop_command_every_n = LaunchConfiguration("drop_command_every_n")
     drop_feedback_every_n = LaunchConfiguration("drop_feedback_every_n")
@@ -47,6 +48,8 @@ def generate_launch_description():
                     encoder_counts_per_revolution,
                     " command_watchdog_ms:=",
                     command_watchdog_ms,
+                    " ack_timeout_ms:=",
+                    ack_timeout_ms,
                     " feedback_timeout_ms:=",
                     feedback_timeout_ms,
                 ]
@@ -153,6 +156,7 @@ def generate_launch_description():
             "encoder_counts_per_revolution", default_value="4096"
         ),
         DeclareLaunchArgument("command_watchdog_ms", default_value="200"),
+        DeclareLaunchArgument("ack_timeout_ms", default_value="200"),
         DeclareLaunchArgument("feedback_timeout_ms", default_value="500"),
         DeclareLaunchArgument("drop_command_every_n", default_value="0"),
         DeclareLaunchArgument("drop_feedback_every_n", default_value="0"),

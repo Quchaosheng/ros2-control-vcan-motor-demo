@@ -23,6 +23,7 @@ hardware_interface::HardwareInfo make_hardware_info()
     {"right_node_id", "2"},
     {"encoder_counts_per_revolution", "4096"},
     {"command_watchdog_ms", "200"},
+    {"ack_timeout_ms", "200"},
     {"feedback_timeout_ms", "500"},
   };
 

@@ -14,6 +14,10 @@ namespace vcan_diffbot_demo
 class MotorState
 {
 public:
+  static constexpr uint8_t kStatusEnabled = 0x01U;
+  static constexpr uint8_t kStatusWatchdogStopped = 0x02U;
+  static constexpr uint8_t kStatusProtocolFault = 0x04U;
+
   MotorState(const int32_t counts_per_revolution, const double max_acceleration_rad_s2)
   : counts_per_revolution_(counts_per_revolution),
     max_acceleration_rad_s2_(max_acceleration_rad_s2)
@@ -99,12 +103,12 @@ public:
 
   uint8_t status() const
   {
-    uint8_t status = enabled_ ? 0x01U : 0x00U;
+    uint8_t status = enabled_ ? kStatusEnabled : 0x00U;
     if (watchdog_stopped_) {
-      status |= 0x02U;
+      status |= kStatusWatchdogStopped;
     }
     if (protocol_fault_) {
-      status |= 0x04U;
+      status |= kStatusProtocolFault;
     }
     return status;
   }
