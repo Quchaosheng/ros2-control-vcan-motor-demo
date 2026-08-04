@@ -161,17 +161,6 @@ public:
     return stop_sent_;
   }
 
-  void recover_if_healthy(
-    const TimePoint now, const std::chrono::milliseconds feedback_timeout,
-    const std::chrono::milliseconds ack_timeout)
-  {
-    if (!ack_fault_ && !ack_timed_out(now, ack_timeout) &&
-      !feedback_timed_out(now, feedback_timeout))
-    {
-      stop_sent_ = false;
-    }
-  }
-
 private:
   struct PendingAck
   {
