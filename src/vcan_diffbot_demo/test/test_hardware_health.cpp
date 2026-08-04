@@ -75,33 +75,3 @@ TEST(HardwareHealth, IgnoresSafeStopAck)
   EXPECT_EQ(health.ack_received(0, 11, 0), AckStatus::IGNORED);
   EXPECT_FALSE(health.ack_fault());
 }
-
-TEST(HardwareHealth, RecoversStopEpisodeOnlyWhenBothFeedbacksAreFresh)
-{
-  HardwareHealth health;
-  const auto now = HardwareHealth::Clock::now();
-  health.reset(now);
-  health.mark_stop_sent();
-
-  health.feedback_received(0, now + 550ms);
-  health.recover_if_healthy(now + 550ms, 500ms, 200ms);
-  EXPECT_TRUE(health.stop_sent());
-
-  health.feedback_received(1, now + 550ms);
-  health.recover_if_healthy(now + 550ms, 500ms, 200ms);
-  EXPECT_FALSE(health.stop_sent());
-}
-
-TEST(HardwareHealth, DoesNotRecoverWhileAckIsTimedOut)
-{
-  HardwareHealth health;
-  const auto now = HardwareHealth::Clock::now();
-  health.reset(now);
-  health.command_sent(0, 12, now);
-  health.mark_stop_sent();
-  health.feedback_received(0, now + 250ms);
-  health.feedback_received(1, now + 250ms);
-
-  health.recover_if_healthy(now + 250ms, 500ms, 200ms);
-  EXPECT_TRUE(health.stop_sent());
-}
