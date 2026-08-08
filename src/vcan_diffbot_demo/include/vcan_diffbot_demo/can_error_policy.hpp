@@ -24,6 +24,36 @@ inline CanErrorSeverity classify_can_error(const uint32_t error_mask)
   return error_mask == 0U ? CanErrorSeverity::NONE : CanErrorSeverity::WARNING;
 }
 
+inline std::string describe_can_controller_state(const uint8_t status_byte)
+{
+  struct StateName
+  {
+    uint8_t bit;
+    const char * name;
+  };
+  constexpr StateName state_names[] = {
+    {CAN_ERR_CRTL_RX_OVERFLOW, "rx_overflow"},
+    {CAN_ERR_CRTL_TX_OVERFLOW, "tx_overflow"},
+    {CAN_ERR_CRTL_RX_WARNING, "rx_warning"},
+    {CAN_ERR_CRTL_TX_WARNING, "tx_warning"},
+    {CAN_ERR_CRTL_RX_PASSIVE, "rx_passive"},
+    {CAN_ERR_CRTL_TX_PASSIVE, "tx_passive"},
+    {CAN_ERR_CRTL_ACTIVE, "active"},
+  };
+
+  std::string description;
+  for (const auto & state_name : state_names) {
+    if ((status_byte & state_name.bit) == 0U) {
+      continue;
+    }
+    if (!description.empty()) {
+      description += ',';
+    }
+    description += state_name.name;
+  }
+  return description.empty() && status_byte != 0U ? "unknown" : description;
+}
+
 inline std::string describe_can_error(const uint32_t error_mask)
 {
   struct ErrorName
