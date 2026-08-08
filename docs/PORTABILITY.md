@@ -14,3 +14,9 @@ CAN constant shim is supplied by the test harness.
 Keep hardware-dependent launch tests in the Linux CI job and run pure policy
 tests separately so portability failures are visible without weakening the
 runtime safety boundary.
+
+On an ARM64 board with ROS 2 Humble installed, build natively with:
+
+```bash
+bash scripts/build_on_arm64.sh
+```
