@@ -280,6 +280,12 @@ hardware_interface::return_type CanMotorHardware::read(
         }
 
         last_can_error_ = describe_can_error(error_mask);
+        if ((error_mask & CAN_ERR_CRTL) != 0U && data.size() > 1U) {
+          const auto controller_state = describe_can_controller_state(data[1]);
+          if (!controller_state.empty()) {
+            last_can_error_ += " (" + controller_state + ")";
+          }
+        }
         if (severity == CanErrorSeverity::WARNING) {
           RCLCPP_WARN(logger_, "SocketCAN warning: %s", last_can_error_.c_str());
           publish_diagnostics(true);
