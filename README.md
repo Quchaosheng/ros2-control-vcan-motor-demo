@@ -18,10 +18,6 @@ safe stopping, receive filters, and deterministic CAN faults.
 The live GitHub Actions badge above reports the ROS 2 Humble build and test workflow for this
 repository. The project is licensed under [Apache-2.0](LICENSE).
 
-Development uses a human-reviewed workflow with AI-assisted implementation and testing. The
-published `master` history is normalized to the project maintainer's identity; generated work
-branches and local tooling artifacts are not part of the public repository.
-
 ## Demo
 
 [![Recorded vcan DiffBot run with CAN and safety telemetry](docs/demo/vcan_diffbot_demo.gif)](docs/demo/vcan_diffbot_demo.mp4)
