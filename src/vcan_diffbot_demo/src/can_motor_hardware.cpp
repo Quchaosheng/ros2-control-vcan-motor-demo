@@ -21,6 +21,7 @@
 #include "vcan_diffbot_demo/can_error_policy.hpp"
 #include "vcan_diffbot_demo/can_filters.hpp"
 #include "vcan_diffbot_demo/can_protocol.hpp"
+#include "vcan_diffbot_demo/can_sender.hpp"
 
 namespace vcan_diffbot_demo
 {
@@ -198,7 +199,7 @@ hardware_interface::CallbackReturn CanMotorHardware::on_activate(
   fault_stop_attempted_ = false;
   fault_stop_succeeded_ = false;
   try {
-    sender_ = std::make_unique<drivers::socketcan::SocketCanSender>(can_interface_);
+    sender_ = make_loopback_sender(can_interface_);
     receiver_ = std::make_unique<drivers::socketcan::SocketCanReceiver>(can_interface_);
     receiver_->SetCanFilters(hardware_can_filters(node_ids_));
     const auto now = std::chrono::steady_clock::now();

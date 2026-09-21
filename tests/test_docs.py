@@ -44,6 +44,8 @@ for required in (
     "safety-path.svg",
     "src/vcan_diffbot_demo/",
     "sudo -n",
+    "make_loopback_sender",
+    "ros2_socketcan` 1.4.0",
 ):
     assert required in chinese, f"Chinese README is missing {required}"
 
