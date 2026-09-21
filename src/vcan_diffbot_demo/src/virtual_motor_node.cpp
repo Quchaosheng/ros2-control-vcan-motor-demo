@@ -21,6 +21,7 @@
 #include "ros2_socketcan/socket_can_sender.hpp"
 #include "vcan_diffbot_demo/can_filters.hpp"
 #include "vcan_diffbot_demo/can_protocol.hpp"
+#include "vcan_diffbot_demo/can_sender.hpp"
 #include "vcan_diffbot_demo/motor_state.hpp"
 
 namespace vcan_diffbot_demo
@@ -90,7 +91,7 @@ public:
     motors_[1] = std::make_unique<MotorState>(
       static_cast<int32_t>(encoder_counts), max_acceleration);
 
-    sender_ = std::make_unique<drivers::socketcan::SocketCanSender>(can_interface_);
+    sender_ = make_loopback_sender(can_interface_);
     receiver_ = std::make_unique<drivers::socketcan::SocketCanReceiver>(can_interface_);
     receiver_->SetCanFilters(virtual_motor_can_filters(node_ids_));
 

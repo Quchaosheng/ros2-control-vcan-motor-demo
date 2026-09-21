@@ -292,6 +292,17 @@ candump -L vcan0
 
 应当能看到两个节点 ID 的命令、ACK 和反馈帧。
 
+### 升级 `ros2_socketcan` 后 `vcan` 收发失败
+
+`ros2_socketcan` 1.4.0 新增了默认值为 `false` 的 `enable_loopback` 发送参数，并在发送
+socket 上显式设置 `CAN_RAW_LOOPBACK=0`。`vcan` 没有物理介质，本地回环是帧送达同一接口
+上其他进程的唯一路径。回环关闭后，`virtual_motor_node` 与硬件接口互相收不到对方的帧：
+命令看似已发出，但所有 ACK、反馈、`/diagnostics` 和 `/joint_states` 断言都会超时。
+
+本仓库的两个发送端都通过 `vcan_diffbot_demo::make_loopback_sender` 创建：在提供该参数的
+版本上显式开启回环，在更早的版本上回退到原有构造函数。请继续使用该辅助函数，不要直接
+构造 `SocketCanSender`；支持的 `ros2_socketcan` 版本范围见 `docs/PORTABILITY.md`。
+
 ## 项目范围
 
 本仓库验证软件控制契约、SocketCAN 传输、状态反馈、看门狗和安全停机。`vcan`

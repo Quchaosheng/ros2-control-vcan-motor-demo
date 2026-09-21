@@ -310,6 +310,20 @@ candump -L vcan0
 
 You should see command, ACK, and feedback frames for both node IDs.
 
+### `vcan` round trips stop working after upgrading `ros2_socketcan`
+
+`ros2_socketcan` 1.4.0 added an `enable_loopback` sender argument that defaults to `false`, and it
+now sets `CAN_RAW_LOOPBACK=0` on the sender socket. A `vcan` interface has no physical medium, so
+local loopback is the only path that delivers a frame to the other processes bound to the same
+interface. With loopback disabled, `virtual_motor_node` and the hardware interface never observe
+each other's frames: commands appear to be sent, yet every ACK, feedback, `/diagnostics`, and
+`/joint_states` expectation times out.
+
+This repository constructs both senders through `vcan_diffbot_demo::make_loopback_sender`, which
+requests loopback explicitly on releases that expose the argument and falls back to the previous
+constructor otherwise. Keep using it instead of constructing `SocketCanSender` directly, and see
+`docs/PORTABILITY.md` for the supported `ros2_socketcan` range.
+
 ## Demo scope
 
 This repository validates the software control contract, SocketCAN transport, state feedback,

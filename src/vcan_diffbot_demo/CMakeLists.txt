@@ -72,6 +72,10 @@ if(BUILD_TESTING)
   ament_add_gtest(test_can_error_policy test/test_can_error_policy.cpp)
   target_include_directories(test_can_error_policy PRIVATE include)
 
+  ament_add_gtest(test_can_sender test/test_can_sender.cpp)
+  target_include_directories(test_can_sender PRIVATE include)
+  ament_target_dependencies(test_can_sender ros2_socketcan)
+
   ament_add_pytest_test(test_urdf_xacro test/test_urdf_xacro.py)
   ament_add_pytest_test(test_demo_launch_arguments test/test_demo_launch_arguments.py)
   ament_add_pytest_test(test_vcan_test_utils test/test_vcan_test_utils.py)
