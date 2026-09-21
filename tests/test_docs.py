@@ -32,7 +32,19 @@ english = DOCUMENTS[0].read_text(encoding="utf-8")
 chinese = DOCUMENTS[1].read_text(encoding="utf-8")
 assert "(README.zh-CN.md)" in english
 assert "(README.md)" in chinese
-for required in ("vcan_diffbot_demo.mp4", "ros2 launch", "colcon test", "drop_feedback_node_id"):
+for required in (
+    "vcan_diffbot_demo.mp4",
+    "ros2 launch",
+    "colcon test",
+    "drop_feedback_node_id",
+    "0x101",
+    "0x281",
+    "candump -L vcan0",
+    "can-frame-layout.svg",
+    "safety-path.svg",
+    "src/vcan_diffbot_demo/",
+    "sudo -n",
+):
     assert required in chinese, f"Chinese README is missing {required}"
 
 print("PASS: bilingual README links and contracts")
