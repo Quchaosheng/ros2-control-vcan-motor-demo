@@ -207,6 +207,32 @@ The hardware tracks commands until matching ACKs arrive. A rejected, unexpected,
 faults the hardware and sends disabled zero commands to both motors. Feedback loss on either motor
 uses the same safe-stop path.
 
+### Outstanding command window
+
+Each motor tracks at most 4 unacknowledged commands in a preallocated ring. Before a command is
+encoded and written to the socket, the hardware checks that the window has room and that the next
+sequence is not already in flight; both an overflow and an ambiguous in-flight sequence reuse are
+refused. A refused command is never sent, so it cannot put a frame on the bus that the hardware
+would then fail to match. The ring replaces a growing container, so a healthy steady-state
+read/write cycle performs no dynamic allocation. `pending_ack_count` is reported per motor in
+`/diagnostics`.
+
+Bounded traffic and storage do not make the control loop hard real time. The remaining budgets are:
+
+| Limit | Default | Meaning |
+| --- | --- | --- |
+| Window | 4 commands/motor | Unacknowledged commands; overflow faults the hardware |
+| Window reuse | next sequence | Sending stops before a live sequence is reused |
+| Safe stop | 1 sequence/motor | One disabled zero command per motor, in a separate slot |
+| Send wait | 1 ms | Blocking wait for one CAN frame to leave the socket |
+| Receive poll | 50 us | Blocking wait when the receive queue is empty |
+| Frames per read | 64 | Receive drain budget for a single `read()` |
+| ACK timeout | 200 ms | `ack_timeout_ms`; also bounded by the 8-bit sequence space |
+
+A rejected ACK, a sequence reuse, or a full window faults the hardware and triggers the same
+bounded safe-stop path. Zero allocation describes this bookkeeping only, not kernel socket buffers,
+scheduling jitter, or the CAN driver.
+
 SocketCAN warning frames are reported in `/diagnostics` and do not stop the stack. BUS-OFF and
 TX-timeout frames are fatal: the hardware clears commands, sends its one safe-stop attempt, latches
 the fault, and returns an error until the hardware is reactivated.
