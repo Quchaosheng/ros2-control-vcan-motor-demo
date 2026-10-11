@@ -34,7 +34,7 @@ CANFD_FRAME_FORMAT = "=IBB2x64s"
 
 def fd_vcan_available():
     try:
-        create_test_vcan()
+        create_test_vcan(fd=True)
         return True
     except Exception:
         return False
@@ -48,7 +48,7 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.mark.launch_test
 def generate_test_description():
-    can_interface = create_test_vcan()
+    can_interface = create_test_vcan(fd=True)
     motor = launch_ros.actions.Node(
         package="vcan_diffbot_demo",
         executable="virtual_motor_node",
