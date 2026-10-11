@@ -64,9 +64,11 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_can_transport test/test_can_transport.cpp)
   target_include_directories(test_can_transport PRIVATE include)
+  ament_target_dependencies(test_can_transport ros2_socketcan)
 
   ament_add_gtest(test_canfd_exchange test/test_canfd_exchange.cpp)
   target_include_directories(test_canfd_exchange PRIVATE include)
+  ament_target_dependencies(test_canfd_exchange ros2_socketcan)
 
   ament_add_gtest(test_motor_state test/test_motor_state.cpp)
   target_include_directories(test_motor_state PRIVATE include)
