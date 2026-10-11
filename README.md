@@ -176,6 +176,33 @@ fields.
 
 ![Byte layout of command, feedback, and ACK CAN frames](docs/assets/readme/can-frame-layout.svg)
 
+### Transport profiles
+
+The classic profile above is the default and keeps working unchanged. An opt-in CAN-FD profile
+carries a protocol version and a widened request identity. Select it with `transport:=canfd`; any
+other value is rejected at startup rather than silently selecting a wire contract. Both the sender
+and the receiver are opened for FD, and a socket opened for the wrong profile fails configuration.
+
+| Property | `classic_can` (default) | `canfd` |
+| --- | --- | --- |
+| Version tag | none (no version field) | byte 1, currently `1` |
+| Frame-type tag | none | byte 13: `0x01` command, `0x02` feedback, `0x03` ACK |
+| Request identity | 8-bit sequence (byte 0) | byte 0 low byte plus a 32-bit command id (bytes 4-7) and node id (bytes 8-11) |
+| Command length | DLC 8 | DLC 20 |
+| Feedback length | DLC 8 | DLC 28 |
+| ACK length | DLC 8 | DLC 16 |
+| Extra fields | none | feedback timestamp (bytes 22-25), widened 16-bit status (bytes 14-15) |
+| Reserved | bytes 6-7 zero | trailing bytes zero |
+
+FD payload lengths follow ISO 11898-1: only lengths the data phase can carry are accepted, and
+without bit-rate switching the minimum is 12 bytes. Version mismatch, frame-type mismatch, an
+illegal length, and dirty reserved bytes are all rejected. Because the classic profile has no
+version field, an FD frame never decodes as classic and vice versa.
+
+`canfd` reports a version of `1`; a peer speaking a different version is refused rather than
+guessed at. The transported payloads are the same application fields as classic, so no physical
+throughput or latency improvement is claimed by this profile.
+
 ### Velocity command
 
 | Byte | Field |
@@ -323,6 +350,33 @@ This repository constructs both senders through `vcan_diffbot_demo::make_loopbac
 requests loopback explicitly on releases that expose the argument and falls back to the previous
 constructor otherwise. Keep using it instead of constructing `SocketCanSender` directly, and see
 `docs/PORTABILITY.md` for the supported `ros2_socketcan` range.
+
+## Hardware-in-the-loop procedure (CAN-FD)
+
+`vcan` proves the protocol logic, not the physical bus. Before treating the CAN-FD profile as
+validated on real hardware, record the following on the target bench. Nothing in this repository
+claims these figures.
+
+| Item | Record |
+| --- | --- |
+| Controller / adapter | CAN controller and USB/PCIe adapter model, driver and firmware version |
+| Arbitration bitrate | configured value, and how it was confirmed |
+| Data bitrate | configured value, and how it was confirmed |
+| BRS | enabled or disabled, and whether both endpoints agree |
+| Sample point | arbitration and data phase sample points |
+| Bus load | worst-case load during the command/feedback cycle |
+| Latency | command-to-ACK and feedback period, measured on the wire |
+| Errors | TEC/REC counters, error frames, and BUS-OFF count over the run |
+
+Procedure:
+
+1. Bring up the interface with the recorded bitrate and BRS settings.
+2. Run the demo with `transport:=canfd` and confirm the startup log reports the expected profile.
+3. Capture traffic with `candump -L <interface>` and confirm command, ACK, and feedback lengths
+   match the FD layouts above.
+4. Inject the electrical faults `vcan` cannot model (termination loss, shorted bus, single-node
+   disconnect) and record the error counters and the resulting safe-stop behavior.
+5. Repeat with `transport:=classic_can` to confirm both profiles still meet the same contract.
 
 ## Demo scope
 

@@ -60,6 +60,15 @@ TEST(CanSender, KeepsLegacyConstructionWhenLoopbackIsUnavailable)
   EXPECT_FALSE(sender->enable_fd);
 }
 
+TEST(CanSender, RequestsCanFdWhenTheProfileIsOptedIn)
+{
+  const auto sender = vcan_diffbot_demo::make_loopback_sender<ModernSender>("vcantest", true);
+  ASSERT_NE(sender, nullptr);
+  EXPECT_TRUE(sender->enable_fd);
+  // Classic stays the default: omitting the argument must not enable FD.
+  EXPECT_FALSE(vcan_diffbot_demo::make_loopback_sender<ModernSender>("vcantest")->enable_fd);
+}
+
 TEST(CanSender, HelperReturnsTheUpstreamSenderType)
 {
   // Compile-time only: the helper must select the request-loopback branch for

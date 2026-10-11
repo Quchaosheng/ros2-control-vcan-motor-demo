@@ -20,7 +20,9 @@
 #include "ros2_socketcan/socket_can_receiver.hpp"
 #include "ros2_socketcan/socket_can_sender.hpp"
 #include "vcan_diffbot_demo/can_filters.hpp"
+#include "vcan_diffbot_demo/can_transport.hpp"
 #include "vcan_diffbot_demo/can_protocol.hpp"
+#include "vcan_diffbot_demo/canfd_protocol.hpp"
 #include "vcan_diffbot_demo/can_sender.hpp"
 #include "vcan_diffbot_demo/motor_state.hpp"
 
@@ -61,6 +63,8 @@ public:
       "encoder_counts_per_revolution", 4096);
     const double max_acceleration = declare_parameter<double>(
       "max_acceleration_rad_s2", 20.0);
+    const auto transport = declare_parameter<std::string>("transport", "classic_can");
+    const auto brs = declare_parameter<std::string>("brs", "auto");
     const double update_rate = declare_parameter<double>("update_rate_hz", 100.0);
     const double feedback_rate = declare_parameter<double>("feedback_rate_hz", 50.0);
     drop_command_every_n_ = nonnegative_parameter("drop_command_every_n", 0);
@@ -73,6 +77,19 @@ public:
 
     if (can_interface_.empty()) {
       throw std::invalid_argument("can_interface must not be empty");
+    }
+    if (!parse_transport_profile(transport, transport_.profile)) {
+      throw std::invalid_argument(
+              "transport must be classic_can or canfd, got '" + transport + "'");
+    }
+    if (!parse_bit_rate_switch(brs, transport_.brs)) {
+      throw std::invalid_argument("brs must be auto, disabled or enabled, got '" + brs + "'");
+    }
+    std::string transport_error;
+    // shortcut: FD socket support is assumed present; verify the upstream
+    // ros2_socketcan version enables it before relying on canfd in production.
+    if (!validate_transport(transport_, true, transport_error)) {
+      throw std::invalid_argument(transport_error);
     }
     if (left_node_id < 1 || left_node_id > 127 || right_node_id < 1 ||
       right_node_id > 127 || left_node_id == right_node_id)
@@ -91,8 +108,9 @@ public:
     motors_[1] = std::make_unique<MotorState>(
       static_cast<int32_t>(encoder_counts), max_acceleration);
 
-    sender_ = make_loopback_sender(can_interface_);
-    receiver_ = std::make_unique<drivers::socketcan::SocketCanReceiver>(can_interface_);
+    const bool fd = vcan_diffbot_demo::fd_socket_enabled(transport_);
+    sender_ = make_loopback_sender(can_interface_, fd);
+    receiver_ = std::make_unique<drivers::socketcan::SocketCanReceiver>(can_interface_, fd);
     receiver_->SetCanFilters(virtual_motor_can_filters(node_ids_));
 
     const auto now = std::chrono::steady_clock::now();
@@ -108,7 +126,8 @@ public:
 
     running_.store(true);
     receiver_thread_ = std::thread(&VirtualMotorNode::receive_loop, this);
-    RCLCPP_INFO(get_logger(), "Virtual motors listening on %s", can_interface_.c_str());
+    RCLCPP_INFO(get_logger(), "Virtual motors listening on %s (%s)", can_interface_.c_str(),
+      describe_transport(transport_).c_str());
   }
 
   ~VirtualMotorNode() override
@@ -122,7 +141,7 @@ public:
 private:
   struct DelayedFrame
   {
-    protocol::FrameData data;
+    protocol::FdFrameData data;
     drivers::socketcan::CanId id;
     std::size_t length;
     std::chrono::steady_clock::time_point due;
@@ -146,10 +165,31 @@ private:
     }
   }
 
+  /// Both profiles share one receive buffer; the profile decides the layout.
+  std::optional<protocol::Command> decode_command_frame(
+    const protocol::FdFrameData & data, const std::size_t length) const
+  {
+    if (transport_.profile == TransportProfile::CanFd) {
+      const auto command = protocol::decode_fd_command(data, length);
+      if (command) {
+        return protocol::Command{
+          static_cast<uint8_t>(command->request.command_id), command->enabled,
+          command->velocity_mrad_s, command->watchdog_ms};
+      }
+      return std::nullopt;
+    }
+    const protocol::FrameData classic = [&data]() {
+        protocol::FrameData frame{};
+        std::copy_n(data.begin(), frame.size(), frame.begin());
+        return frame;
+      }();
+    return protocol::decode_command(classic, length);
+  }
+
   void receive_loop()
   {
     while (running_.load()) {
-      protocol::FrameData data{};
+      protocol::FdFrameData data{};
       try {
         const auto can_id = receiver_->receive(data.data(), kCanTimeout);
         if (can_id.frame_type() != drivers::socketcan::FrameType::DATA) {
@@ -173,7 +213,7 @@ private:
           continue;
         }
 
-        const auto command = protocol::decode_command(data, can_id.length());
+        const auto command = decode_command_frame(data, can_id.length());
         if (!command) {
           {
             std::lock_guard<std::mutex> lock(motor_mutex_);
@@ -263,11 +303,30 @@ private:
         send_frame(error_data, error_id, error_data.size());
       }
 
-      const auto data = protocol::encode_feedback(feedback[index]);
       const drivers::socketcan::CanId can_id(
         protocol::feedback_id(node_ids_[index]), 0U,
         drivers::socketcan::FrameType::DATA, drivers::socketcan::StandardFrame);
-      const std::size_t length = every_n(malformed_feedback_every_n_, feedback_count_) ? 7U : 8U;
+      const bool malformed = every_n(malformed_feedback_every_n_, feedback_count_);
+      protocol::FdFrameData data{};
+      std::size_t length = 8U;
+      if (transport_.profile == TransportProfile::CanFd) {
+        const auto fd = protocol::encode_fd_feedback(protocol::FdFeedback{
+          {node_ids_[index], feedback[index].sequence}, feedback[index].status,
+          feedback[index].velocity_mrad_s, feedback[index].encoder_count,
+          static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count())});
+        std::copy(fd.begin(), fd.end(), data.begin());
+        length = protocol::kFdFeedbackDlc;
+        // Keep the fault-injection knob meaningful on FD: a truncated payload
+        // is not a length the FD decoder accepts.
+        if (malformed) {
+          length = protocol::kFdFeedbackDlc - 4U;
+        }
+      } else {
+        const auto classic = protocol::encode_feedback(feedback[index]);
+        std::copy(classic.begin(), classic.end(), data.begin());
+        length = malformed ? 7U : 8U;
+      }
       if (feedback_delay_ms_ == 0) {
         send_frame(data, can_id, length);
       } else {
@@ -280,26 +339,38 @@ private:
 
   void send_ack(const std::size_t index, const uint8_t sequence, const uint8_t result)
   {
-    const auto data = protocol::encode_ack({sequence, result});
     const drivers::socketcan::CanId can_id(
       protocol::ack_id(node_ids_[index]), 0U,
       drivers::socketcan::FrameType::DATA, drivers::socketcan::StandardFrame);
+    if (transport_.profile == TransportProfile::CanFd) {
+      const auto fd = protocol::encode_fd_ack(
+        protocol::FdAck{{node_ids_[index], sequence}, result});
+      send_frame(fd, can_id, protocol::kFdAckDlc);
+      return;
+    }
+    const auto data = protocol::encode_ack({sequence, result});
     send_frame(data, can_id, data.size());
   }
 
+  template<typename Buffer>
   void send_frame(
-    const protocol::FrameData & data, const drivers::socketcan::CanId & can_id,
+    const Buffer & data, const drivers::socketcan::CanId & can_id,
     const std::size_t length)
   {
     try {
       std::lock_guard<std::mutex> lock(sender_mutex_);
-      sender_->send(data.data(), length, can_id, kSendTimeout);
+      if (transport_.profile == TransportProfile::CanFd) {
+        sender_->send_fd(data.data(), length, can_id, kSendTimeout);
+      } else {
+        sender_->send(data.data(), length, can_id, kSendTimeout);
+      }
     } catch (const std::exception & error) {
       RCLCPP_ERROR(get_logger(), "CAN send failed: %s", error.what());
     }
   }
 
   std::string can_interface_;
+  TransportConfig transport_{};
   std::array<uint8_t, 2> node_ids_{};
   std::array<std::unique_ptr<MotorState>, 2> motors_;
   std::array<std::chrono::steady_clock::time_point, 2> last_command_{};

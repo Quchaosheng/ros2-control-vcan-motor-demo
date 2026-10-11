@@ -1,6 +1,8 @@
 virtual_motor:
   ros__parameters:
     can_interface: vcan0
+    transport: classic_can
+    brs: auto
     max_acceleration_rad_s2: 20.0
     update_rate_hz: 100.0
     feedback_rate_hz: 50.0

@@ -115,6 +115,25 @@ hardware_interface::CallbackReturn CanMotorHardware::on_init(
       throw std::invalid_argument("can_interface must not be empty");
     }
 
+    {
+      const auto transport = info_.hardware_parameters.count("transport") ?
+        info_.hardware_parameters.at("transport") : std::string("classic_can");
+      const auto brs = info_.hardware_parameters.count("brs") ?
+        info_.hardware_parameters.at("brs") : std::string("auto");
+      if (!parse_transport_profile(transport, transport_.profile)) {
+        throw std::invalid_argument(
+                "transport must be classic_can or canfd, got '" + transport + "'");
+      }
+      if (!parse_bit_rate_switch(brs, transport_.brs)) {
+        throw std::invalid_argument("brs must be auto, disabled or enabled, got '" + brs + "'");
+      }
+      std::string transport_error;
+      // shortcut: FD socket support is assumed present in ros2_socketcan 1.4.0.
+      if (!validate_transport(transport_, true, transport_error)) {
+        throw std::invalid_argument(transport_error);
+      }
+    }
+
     const long left_node = parse_positive(
       info_.hardware_parameters.at("left_node_id"), "left_node_id");
     const long right_node = parse_positive(
@@ -199,8 +218,9 @@ hardware_interface::CallbackReturn CanMotorHardware::on_activate(
   fault_stop_attempted_ = false;
   fault_stop_succeeded_ = false;
   try {
-    sender_ = make_loopback_sender(can_interface_);
-    receiver_ = std::make_unique<drivers::socketcan::SocketCanReceiver>(can_interface_);
+    const bool fd = fd_socket_enabled(transport_);
+    sender_ = make_loopback_sender(can_interface_, fd);
+    receiver_ = std::make_unique<drivers::socketcan::SocketCanReceiver>(can_interface_, fd);
     receiver_->SetCanFilters(hardware_can_filters(node_ids_));
     const auto now = std::chrono::steady_clock::now();
     health_.reset(now);
