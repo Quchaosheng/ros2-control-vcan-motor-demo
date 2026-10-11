@@ -112,6 +112,37 @@ TEST(HardwareHealth, RejectsCommandSentBeyondCapacityWithoutGrowing)
   EXPECT_EQ(health.pending_ack_count(0), HardwareHealth::kMaxOutstandingCommands);
 }
 
+TEST(HardwareHealth, FullWindowStillReportsAckTimeoutAsTheFault)
+{
+  // Regression: a full outstanding window is backpressure, not a transport
+  // failure. If it latched a send error instead, it would mask the ACK-timeout
+  // fault that read() detects when the device stops acknowledging.
+  HardwareHealth health;
+  const auto t0 = HardwareHealth::Clock::now();
+  health.reset(t0);
+  const auto ack_timeout = std::chrono::milliseconds(250);
+  const auto period = std::chrono::milliseconds(20);
+
+  std::size_t accepted = 0U;
+  bool timed_out = false;
+  for (std::size_t cycle = 0; cycle < 100U; ++cycle) {
+    const auto now = t0 + period * cycle;
+    const uint8_t sequence = static_cast<uint8_t>(accepted + 1U);
+    if (health.can_accept_command(0, sequence)) {
+      health.command_sent(0, sequence, now);
+      ++accepted;
+    }
+    if (health.ack_timed_out(0, now, ack_timeout)) {
+      timed_out = true;
+      break;
+    }
+  }
+
+  EXPECT_TRUE(timed_out);
+  EXPECT_EQ(accepted, HardwareHealth::kMaxOutstandingCommands);
+  EXPECT_EQ(health.pending_ack_count(0), HardwareHealth::kMaxOutstandingCommands);
+}
+
 TEST(HardwareHealth, RejectsInFlightSequenceReuseBeforeSending)
 {
   HardwareHealth health;
