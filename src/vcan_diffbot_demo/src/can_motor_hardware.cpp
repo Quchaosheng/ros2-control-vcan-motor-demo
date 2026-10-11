@@ -445,16 +445,24 @@ bool CanMotorHardware::send_command(
       static_cast<double>(std::numeric_limits<int16_t>::min()),
       static_cast<double>(std::numeric_limits<int16_t>::max()));
     const int32_t velocity_mrad_s = static_cast<int32_t>(std::llround(clamped_velocity_mrad_s));
+    const uint8_t sequence = static_cast<uint8_t>(sequences_[index] + 1U);
+    if (track_ack && !health_.can_accept_command(index, sequence)) {
+      RCLCPP_ERROR(logger_,
+        "Outstanding command window is full or sequence %u is already in flight for node %u",
+        sequence, node_ids_[index]);
+      return false;
+    }
     const auto data = protocol::encode_command(
-      ++sequences_[index], enabled, velocity_mrad_s, command_watchdog_ms_);
+      sequence, enabled, velocity_mrad_s, command_watchdog_ms_);
     const drivers::socketcan::CanId can_id(
       protocol::command_id(node_ids_[index]), 0U,
       drivers::socketcan::FrameType::DATA, drivers::socketcan::StandardFrame);
     sender_->send(data, can_id, kSendTimeout);
+    sequences_[index] = sequence;
     if (track_ack) {
-      health_.command_sent(index, sequences_[index], std::chrono::steady_clock::now());
+      health_.command_sent(index, sequence, std::chrono::steady_clock::now());
     } else {
-      health_.safe_stop_sent(index, sequences_[index]);
+      health_.safe_stop_sent(index, sequence);
     }
     return true;
   } catch (const std::exception & error) {

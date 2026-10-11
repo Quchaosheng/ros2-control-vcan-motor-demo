@@ -5,7 +5,6 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <deque>
 #include <optional>
 
 namespace vcan_diffbot_demo
@@ -38,10 +37,31 @@ public:
     stop_sent_ = false;
   }
 
+  static constexpr std::size_t kMaxOutstandingCommands = 4U;
+
+  /// True when another in-flight command fits, so the caller can reject an
+  /// overflow before it advances the sequence and puts a frame on the bus.
+  /// An ambiguous reuse of a live sequence is rejected for the same reason:
+  /// the ACK for the older command would be indistinguishable from the newer.
+  bool can_accept_command(const std::size_t index, const uint8_t sequence) const
+  {
+    if (index >= pending_acks_.size() ||
+      pending_acks_[index].size >= kMaxOutstandingCommands)
+    {
+      return false;
+    }
+    for (std::size_t offset = 0; offset < pending_acks_[index].size; ++offset) {
+      if (pending_acks_[index].sequence(offset) == sequence) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   void command_sent(const std::size_t index, const uint8_t sequence, const TimePoint now)
   {
     if (index < pending_acks_.size()) {
-      pending_acks_[index].push_back({sequence, now});
+      pending_acks_[index].push({sequence, now});
     }
   }
 
@@ -62,7 +82,7 @@ public:
 
     auto & pending = pending_acks_[index];
     if (!pending.empty() && pending.front().sequence == sequence) {
-      pending.pop_front();
+      pending.pop();
       if (result == 0U) {
         last_ack_status_[index] = AckStatus::ACCEPTED;
         return AckStatus::ACCEPTED;
@@ -85,7 +105,7 @@ public:
 
   std::size_t pending_ack_count(const std::size_t index) const
   {
-    return index < pending_acks_.size() ? pending_acks_[index].size() : 0U;
+    return index < pending_acks_.size() ? pending_acks_[index].size : 0U;
   }
 
   AckStatus last_ack_status(const std::size_t index) const
@@ -168,7 +188,51 @@ private:
     TimePoint sent_at;
   };
 
-  std::array<std::deque<PendingAck>, 2> pending_acks_;
+  // Fixed-capacity FIFO over a preallocated array: the control loop must not
+  // allocate, so the window is a ring rather than a growing container.
+  struct AckWindow
+  {
+    std::array<PendingAck, kMaxOutstandingCommands> slots{};
+    std::size_t head{0U};
+    std::size_t size{0U};
+
+    bool empty() const {return size == 0U;}
+
+    PendingAck & front() {return slots[head];}
+
+    const PendingAck & front() const {return slots[head];}
+
+    uint8_t sequence(const std::size_t offset) const
+    {
+      return slots[(head + offset) % kMaxOutstandingCommands].sequence;
+    }
+
+    void push(const PendingAck & ack)
+    {
+      if (size == kMaxOutstandingCommands) {
+        return;
+      }
+      slots[(head + size) % kMaxOutstandingCommands] = ack;
+      ++size;
+    }
+
+    void pop()
+    {
+      if (size == 0U) {
+        return;
+      }
+      head = (head + 1U) % kMaxOutstandingCommands;
+      --size;
+    }
+
+    void clear()
+    {
+      head = 0U;
+      size = 0U;
+    }
+  };
+
+  std::array<AckWindow, 2> pending_acks_;
   std::array<std::optional<uint8_t>, 2> ignored_ack_sequences_{};
   std::array<AckStatus, 2> last_ack_status_{};
   std::array<TimePoint, 2> last_feedback_{};
