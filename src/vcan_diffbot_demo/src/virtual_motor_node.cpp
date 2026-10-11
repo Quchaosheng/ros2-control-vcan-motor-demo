@@ -191,7 +191,11 @@ private:
     while (running_.load()) {
       protocol::FdFrameData data{};
       try {
-        const auto can_id = receiver_->receive(data.data(), kCanTimeout);
+        // An FD-enabled socket only accepts the FD receive call; the classic one
+        // makes the library reject every frame and stops this loop.
+        const auto can_id = fd_socket_enabled(transport_) ?
+          receiver_->receive_fd(data.data(), kCanTimeout) :
+          receiver_->receive(data.data(), kCanTimeout);
         if (can_id.frame_type() != drivers::socketcan::FrameType::DATA) {
           continue;
         }
