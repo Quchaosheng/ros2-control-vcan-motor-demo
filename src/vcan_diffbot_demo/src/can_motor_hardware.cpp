@@ -447,10 +447,14 @@ bool CanMotorHardware::send_command(
     const int32_t velocity_mrad_s = static_cast<int32_t>(std::llround(clamped_velocity_mrad_s));
     const uint8_t sequence = static_cast<uint8_t>(sequences_[index] + 1U);
     if (track_ack && !health_.can_accept_command(index, sequence)) {
-      RCLCPP_ERROR(logger_,
+      // Backpressure, not a transport failure: the window is full because ACKs
+      // are outstanding. Reporting this as a send error would mask the real
+      // ACK-timeout fault that read() already detects, so the command is
+      // skipped and the outstanding window is left to time out.
+      RCLCPP_WARN(logger_,
         "Outstanding command window is full or sequence %u is already in flight for node %u",
         sequence, node_ids_[index]);
-      return false;
+      return true;
     }
     const auto data = protocol::encode_command(
       sequence, enabled, velocity_mrad_s, command_watchdog_ms_);
