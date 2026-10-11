@@ -223,7 +223,7 @@ private:
             std::lock_guard<std::mutex> lock(motor_mutex_);
             motors_[index]->set_protocol_fault(true);
           }
-          send_ack(index, data[0], can_id.length() == 8U ? 2U : 1U);
+          send_ack(index, ack_identity(data, can_id.length()), can_id.length() == 8U ? 2U : 1U);
           continue;
         }
 
@@ -241,7 +241,7 @@ private:
           }
           last_command_[index] = std::chrono::steady_clock::now();
         }
-        send_ack(index, command->sequence, 0U);
+        send_ack(index, ack_identity(data, can_id.length()), 0U);
       } catch (const drivers::socketcan::SocketCanTimeout &) {
         continue;
       } catch (const std::exception & error) {
@@ -341,18 +341,33 @@ private:
     }
   }
 
-  void send_ack(const std::size_t index, const uint8_t sequence, const uint8_t result)
+  /// The identity an ACK must echo. Under FD that is the full 32-bit command id
+  /// from the request, not the classic 8-bit sequence: the widened identity is
+  /// the point of the profile, and narrowing it would make two commands that
+  /// share a low byte indistinguishable in the ACK.
+  uint32_t ack_identity(const protocol::FdFrameData & data, const std::size_t length) const
+  {
+    if (transport_.profile != TransportProfile::CanFd) {
+      return data[0];
+    }
+    const auto command = protocol::decode_fd_command(data, length);
+    // A malformed frame still has to be acknowledged with its raw low byte,
+    // because there is no valid identity to echo.
+    return command ? command->request.command_id : data[0];
+  }
+
+  void send_ack(const std::size_t index, const uint32_t identity, const uint8_t result)
   {
     const drivers::socketcan::CanId can_id(
       protocol::ack_id(node_ids_[index]), 0U,
       drivers::socketcan::FrameType::DATA, drivers::socketcan::StandardFrame);
     if (transport_.profile == TransportProfile::CanFd) {
       const auto fd = protocol::encode_fd_ack(
-        protocol::FdAck{{node_ids_[index], sequence}, result});
+        protocol::FdAck{{node_ids_[index], identity}, result});
       send_frame(fd, can_id, protocol::kFdAckDlc);
       return;
     }
-    const auto data = protocol::encode_ack({sequence, result});
+    const auto data = protocol::encode_ack({static_cast<uint8_t>(identity), result});
     send_frame(data, can_id, data.size());
   }
 

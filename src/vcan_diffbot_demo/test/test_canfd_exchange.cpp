@@ -268,3 +268,53 @@ TEST(CanFdExchange, ClassicProfileDoesNotOpenAnFdSocket)
   EXPECT_FALSE(fd_socket_enabled(TransportConfig{TransportProfile::ClassicCan}));
   EXPECT_TRUE(fd_socket_enabled(TransportConfig{TransportProfile::CanFd}));
 }
+
+namespace
+{
+
+/// Mirrors VirtualMotorNode::ack_identity(): the ACK must echo the full 32-bit
+/// command id from the request. Narrowing it to the classic 8-bit sequence
+/// silently loses the upper bits, so two commands that share a low byte become
+/// indistinguishable in the ACK.
+uint32_t node_ack_identity(const FdFrameData & data, const std::size_t length)
+{
+  const auto command = decode_fd_command(data, length);
+  return command ? command->request.command_id : data[0];
+}
+
+}  // namespace
+
+TEST(CanFdExchange, AckEchoesTheFullWidenedIdentityNotTheLowByte)
+{
+  const uint32_t first = 0x00010031U;
+  const uint32_t second = 0x00AB0031U;   // same low byte as `first`
+
+  const auto first_frame = encode_fd_command(FdCommand{{31U, first}, true, 1500, 200U});
+  const auto second_frame = encode_fd_command(FdCommand{{31U, second}, true, 1500, 200U});
+
+  // Both frames agree on byte 0, which is exactly why byte 0 alone is not an
+  // identity under FD.
+  ASSERT_EQ(first_frame[0], second_frame[0]);
+
+  const auto first_ack = encode_fd_ack(
+    FdAck{{31U, node_ack_identity(first_frame, kFdCommandDlc)}, kFdResultAccepted});
+  const auto second_ack = encode_fd_ack(
+    FdAck{{31U, node_ack_identity(second_frame, kFdCommandDlc)}, kFdResultAccepted});
+
+  EXPECT_EQ(decode_fd_ack(first_ack)->request.command_id, first);
+  EXPECT_EQ(decode_fd_ack(second_ack)->request.command_id, second);
+  EXPECT_NE(
+    decode_fd_ack(first_ack)->request.command_id,
+    decode_fd_ack(second_ack)->request.command_id);
+}
+
+TEST(CanFdExchange, AckIdentityFallsBackToTheLowByteForAMalformedFrame)
+{
+  // A frame the decoder refuses has no valid identity, so the raw low byte is
+  // echoed; the result field is what signals the rejection.
+  FdFrameData malformed = encode_fd_command(FdCommand{{31U, 0x00010031U}, true, 1500, 200U});
+  malformed[19] = 0x7FU;   // dirty reserved byte
+
+  EXPECT_FALSE(decode_fd_command(malformed, kFdCommandDlc).has_value());
+  EXPECT_EQ(node_ack_identity(malformed, kFdCommandDlc), 0x31U);
+}
