@@ -92,6 +92,42 @@ void validate_joint(const hardware_interface::ComponentInfo & joint)
   }
 }
 
+/// Profile-aware decoders: the classic and FD layouts share the buffer but not
+/// the byte layout, so the active profile decides which decoder runs.
+std::optional<protocol::Feedback> decode_feedback_frame(
+  const protocol::FdFrameData & data, const std::size_t length,
+  const TransportProfile profile)
+{
+  if (profile == TransportProfile::CanFd) {
+    const auto fd = protocol::decode_fd_feedback(data, length);
+    if (!fd) {
+      return std::nullopt;
+    }
+    return protocol::Feedback{
+      static_cast<uint8_t>(fd->request.command_id), static_cast<uint8_t>(fd->status),
+      fd->velocity_mrad_s, fd->encoder_count};
+  }
+  protocol::FrameData classic{};
+  std::copy_n(data.begin(), classic.size(), classic.begin());
+  return protocol::decode_feedback(classic, length);
+}
+
+std::optional<protocol::Ack> decode_ack_frame(
+  const protocol::FdFrameData & data, const std::size_t length,
+  const TransportProfile profile)
+{
+  if (profile == TransportProfile::CanFd) {
+    const auto fd = protocol::decode_fd_ack(data, length);
+    if (!fd) {
+      return std::nullopt;
+    }
+    return protocol::Ack{static_cast<uint8_t>(fd->request.command_id), fd->result};
+  }
+  protocol::FrameData classic{};
+  std::copy_n(data.begin(), classic.size(), classic.begin());
+  return protocol::decode_ack(classic, length);
+}
+
 }  // namespace
 
 hardware_interface::CallbackReturn CanMotorHardware::on_init(
@@ -285,10 +321,14 @@ hardware_interface::return_type CanMotorHardware::read(
 
   try {
     for (std::size_t count = 0; count < kMaxFramesPerRead; ++count) {
-      protocol::FrameData data{};
+      protocol::FdFrameData data{};
       drivers::socketcan::CanId can_id;
       try {
-        can_id = receiver_->receive(data.data(), kReceivePollTimeout);
+        // An FD-enabled socket only accepts the FD receive call; using the
+        // classic one makes the library reject every frame.
+        can_id = fd_socket_enabled(transport_) ?
+          receiver_->receive_fd(data.data(), kReceivePollTimeout) :
+          receiver_->receive(data.data(), kReceivePollTimeout);
       } catch (const drivers::socketcan::SocketCanTimeout &) {
         break;
       }
@@ -329,7 +369,7 @@ hardware_interface::return_type CanMotorHardware::read(
 
       for (std::size_t index = 0; index < node_ids_.size(); ++index) {
         if (can_id.identifier() == protocol::feedback_id(node_ids_[index])) {
-          const auto feedback = protocol::decode_feedback(data, can_id.length());
+          const auto feedback = decode_feedback_frame(data, can_id.length(), transport_.profile);
           if (!feedback) {
             RCLCPP_WARN(logger_, "Ignoring malformed feedback for node %u", node_ids_[index]);
             break;
@@ -345,7 +385,7 @@ hardware_interface::return_type CanMotorHardware::read(
         }
 
         if (can_id.identifier() == protocol::ack_id(node_ids_[index])) {
-          const auto ack = protocol::decode_ack(data, can_id.length());
+          const auto ack = decode_ack_frame(data, can_id.length(), transport_.profile);
           if (!ack) {
             RCLCPP_WARN(logger_, "Ignoring malformed ACK for node %u", node_ids_[index]);
             break;
@@ -465,16 +505,27 @@ bool CanMotorHardware::send_command(
       static_cast<double>(std::numeric_limits<int16_t>::min()),
       static_cast<double>(std::numeric_limits<int16_t>::max()));
     const int32_t velocity_mrad_s = static_cast<int32_t>(std::llround(clamped_velocity_mrad_s));
-    const auto data = protocol::encode_command(
-      ++sequences_[index], enabled, velocity_mrad_s, command_watchdog_ms_);
+    const uint8_t sequence = static_cast<uint8_t>(sequences_[index] + 1U);
     const drivers::socketcan::CanId can_id(
       protocol::command_id(node_ids_[index]), 0U,
       drivers::socketcan::FrameType::DATA, drivers::socketcan::StandardFrame);
-    sender_->send(data, can_id, kSendTimeout);
-    if (track_ack) {
-      health_.command_sent(index, sequences_[index], std::chrono::steady_clock::now());
+    if (fd_socket_enabled(transport_)) {
+      // An FD socket rejects a classic send outright, so the active profile
+      // decides which encoder and send call are used.
+      const auto fd = protocol::encode_fd_command(protocol::FdCommand{
+        {node_ids_[index], sequence}, enabled, static_cast<int16_t>(velocity_mrad_s),
+        command_watchdog_ms_});
+      sender_->send_fd(fd.data(), protocol::kFdCommandDlc, can_id, kSendTimeout);
     } else {
-      health_.safe_stop_sent(index, sequences_[index]);
+      const auto data = protocol::encode_command(
+        sequence, enabled, velocity_mrad_s, command_watchdog_ms_);
+      sender_->send(data, can_id, kSendTimeout);
+    }
+    sequences_[index] = sequence;
+    if (track_ack) {
+      health_.command_sent(index, sequence, std::chrono::steady_clock::now());
+    } else {
+      health_.safe_stop_sent(index, sequence);
     }
     return true;
   } catch (const std::exception & error) {

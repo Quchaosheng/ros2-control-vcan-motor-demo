@@ -201,3 +201,70 @@ TEST(CanFdExchange, ReactivationClearsTheTracker)
   EXPECT_EQ(link.health().pending_ack_count(0U), 0U);
   EXPECT_EQ(link.deliver_ack({{7U, 0x7001U}, kFdResultAccepted}), AckStatus::UNEXPECTED);
 }
+
+namespace
+{
+
+/// Mirrors CanMotorHardware::decode_feedback_frame() and decode_ack_frame():
+/// the hardware converts an FD frame into the classic structs, because the
+/// control loop only consumes those. If this conversion is skipped, an FD
+/// socket yields either no frame at all or a misparsed one.
+Feedback hardware_decode_feedback(const FdFrameData & data, const std::size_t len)
+{
+  const auto fd = decode_fd_feedback(data, len);
+  EXPECT_TRUE(fd.has_value());
+  return Feedback{
+    static_cast<uint8_t>(fd->request.command_id),
+    static_cast<uint8_t>(fd->status), fd->velocity_mrad_s, fd->encoder_count};
+}
+
+Ack hardware_decode_ack(const FdFrameData & data, const std::size_t len)
+{
+  const auto fd = decode_fd_ack(data, len);
+  EXPECT_TRUE(fd.has_value());
+  return Ack{static_cast<uint8_t>(fd->request.command_id), fd->result};
+}
+
+}  // namespace
+
+TEST(CanFdExchange, HardwareDecodesFdFeedbackIntoTheClassicLayout)
+{
+  // The virtual motor node encodes feedback with a 16-bit status; byte 2 also
+  // carries the low byte, so the hardware's narrowing conversion is lossless.
+  const auto feedback = encode_fd_feedback(
+    FdFeedback{{7U, 0x7001U}, 0x0005U, 900, 4096, 123456U});
+
+  const auto classic = hardware_decode_feedback(feedback, kFdFeedbackDlc);
+
+  EXPECT_EQ(classic.sequence, 0x01U);
+  EXPECT_EQ(classic.status, 0x05U);
+  EXPECT_EQ(classic.velocity_mrad_s, 900);
+  EXPECT_EQ(classic.encoder_count, 4096);
+}
+
+TEST(CanFdExchange, HardwareDecodesFdAckIntoTheClassicLayout)
+{
+  const auto ack = encode_fd_ack(FdAck{{7U, 0x7002U}, kFdResultAccepted});
+
+  const auto classic = hardware_decode_ack(ack, kFdAckDlc);
+
+  EXPECT_EQ(classic.sequence, 0x02U);
+  EXPECT_EQ(classic.result, kFdResultAccepted);
+}
+
+TEST(CanFdExchange, HardwareIgnoresAClassicLengthFdFrame)
+{
+  // A truncated/classic-sized payload must not be accepted as FD, otherwise a
+  // mismatched peer would be read as valid feedback.
+  const auto feedback = encode_fd_feedback(
+    FdFeedback{{7U, 0x7001U}, 0x0001U, 900, 4096, 0U});
+
+  EXPECT_FALSE(decode_fd_feedback(feedback, 8U).has_value());
+  EXPECT_FALSE(decode_fd_ack(encode_fd_ack(FdAck{{7U, 1U}, 0U}), 8U).has_value());
+}
+
+TEST(CanFdExchange, ClassicProfileDoesNotOpenAnFdSocket)
+{
+  EXPECT_FALSE(fd_socket_enabled(TransportConfig{TransportProfile::ClassicCan}));
+  EXPECT_TRUE(fd_socket_enabled(TransportConfig{TransportProfile::CanFd}));
+}
