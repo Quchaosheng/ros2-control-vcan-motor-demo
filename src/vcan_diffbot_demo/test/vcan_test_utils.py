@@ -13,7 +13,7 @@ def privileged_command(command, uid=None):
     return list(command) if effective_uid == 0 else ["sudo", "-n", *command]
 
 
-def create_test_vcan():
+def create_test_vcan(fd=False):
     name = interface_name()
     subprocess.run(
         privileged_command(["modprobe", "vcan"]),
@@ -21,30 +21,40 @@ def create_test_vcan():
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    if subprocess.run(
+    exists = subprocess.run(
         ["ip", "link", "show", name],
         check=False,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-    ).returncode == 0:
-        return name
+    ).returncode == 0
 
-    subprocess.run(
-        privileged_command(["ip", "link", "add", "dev", name, "type", "vcan"]),
-        check=True,
-    )
-    subprocess.run(
-        privileged_command(["ip", "link", "set", "up", name]),
-        check=True,
-    )
-
-    def cleanup():
+    if not exists:
         subprocess.run(
-            privileged_command(["ip", "link", "delete", name]),
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            privileged_command(["ip", "link", "add", "dev", name, "type", "vcan"]),
+            check=True,
+        )
+        subprocess.run(
+            privileged_command(["ip", "link", "set", "up", name]),
+            check=True,
         )
 
-    atexit.register(cleanup)
+        def cleanup():
+            subprocess.run(
+                privileged_command(["ip", "link", "delete", name]),
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+        atexit.register(cleanup)
+
+    # A vcan interface defaults to the classic 16-byte MTU, which silently drops
+    # CAN-FD frames; FD needs the 72-byte MTU. This is set on every path because
+    # an earlier fd=False call may already have created the interface.
+    if fd:
+        subprocess.run(
+            privileged_command(["ip", "link", "set", name, "mtu", "72"]),
+            check=True,
+        )
+
     return name
