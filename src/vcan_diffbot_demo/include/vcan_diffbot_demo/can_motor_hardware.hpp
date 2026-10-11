@@ -16,6 +16,7 @@
 #include "realtime_tools/realtime_publisher.hpp"
 #include "ros2_socketcan/socket_can_receiver.hpp"
 #include "ros2_socketcan/socket_can_sender.hpp"
+#include "vcan_diffbot_demo/can_transport.hpp"
 #include "vcan_diffbot_demo/hardware_health.hpp"
 
 namespace vcan_diffbot_demo
@@ -55,6 +56,7 @@ private:
 
   rclcpp::Logger logger_{rclcpp::get_logger("vcan_diffbot_demo.CanMotorHardware")};
   std::string can_interface_;
+  TransportConfig transport_{};
   std::array<uint8_t, 2> node_ids_{};
   int32_t encoder_counts_per_revolution_{0};
   uint16_t command_watchdog_ms_{0};

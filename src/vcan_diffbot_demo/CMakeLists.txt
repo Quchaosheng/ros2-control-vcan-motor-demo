@@ -59,6 +59,15 @@ if(BUILD_TESTING)
   ament_add_gtest(test_can_protocol test/test_can_protocol.cpp)
   target_include_directories(test_can_protocol PRIVATE include)
 
+  ament_add_gtest(test_canfd_protocol test/test_canfd_protocol.cpp)
+  target_include_directories(test_canfd_protocol PRIVATE include)
+
+  ament_add_gtest(test_can_transport test/test_can_transport.cpp)
+  target_include_directories(test_can_transport PRIVATE include)
+
+  ament_add_gtest(test_canfd_exchange test/test_canfd_exchange.cpp)
+  target_include_directories(test_canfd_exchange PRIVATE include)
+
   ament_add_gtest(test_motor_state test/test_motor_state.cpp)
   target_include_directories(test_motor_state PRIVATE include)
 
@@ -86,6 +95,7 @@ if(BUILD_TESTING)
   target_link_libraries(test_hardware_plugin vcan_diffbot_hardware)
 
   add_launch_test(test/test_virtual_motor_node.py TIMEOUT 60)
+  add_launch_test(test/test_canfd_launch.py TIMEOUT 60)
   add_launch_test(test/test_demo_launch.py TIMEOUT 90)
   add_launch_test(test/test_feedback_timeout_launch.py TIMEOUT 60)
   add_launch_test(test/test_ack_timeout_launch.py TIMEOUT 60)

@@ -30,14 +30,15 @@ struct sender_has_loopback_argument<Sender, std::void_t<decltype(
   >> : std::true_type {};
 
 /// Create a sender that keeps local loopback enabled on every supported
-/// ros2_socketcan release.
+/// ros2_socketcan release, optionally opening the socket for CAN-FD.
 template<typename Sender = drivers::socketcan::SocketCanSender>
-std::unique_ptr<Sender> make_loopback_sender(const std::string & interface)
+std::unique_ptr<Sender> make_loopback_sender(
+  const std::string & interface, const bool enable_fd = false)
 {
   if constexpr (sender_has_loopback_argument<Sender>::value) {
-    return std::make_unique<Sender>(interface, false, true);
+    return std::make_unique<Sender>(interface, enable_fd, true);
   } else {
-    return std::make_unique<Sender>(interface);
+    return std::make_unique<Sender>(interface, enable_fd);
   }
 }
 
