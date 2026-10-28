@@ -416,6 +416,13 @@ hardware_interface::return_type CanMotorHardware::write(
   }
 
   for (std::size_t index = 0; index < commands_.size(); ++index) {
+    // A full window means the ACKs for the commands already on the bus have not
+    // come back. That is ACK loss, and read() reports it as an ACK timeout; it
+    // must not be turned into a CAN send error here, or the fault would be
+    // attributed to the wrong subsystem and the timeout message never appears.
+    if (ack_window_full(index)) {
+      continue;
+    }
     if (!send_command(index, true, commands_[index])) {
       commands_.fill(0.0);
       if (stop_reason_ == "none") {
@@ -429,6 +436,12 @@ hardware_interface::return_type CanMotorHardware::write(
     }
   }
   return hardware_interface::return_type::OK;
+}
+
+bool CanMotorHardware::ack_window_full(const std::size_t index) const
+{
+  return index < sequences_.size() &&
+         !health_.can_track(index, static_cast<uint8_t>(sequences_[index] + 1U));
 }
 
 bool CanMotorHardware::send_command(
