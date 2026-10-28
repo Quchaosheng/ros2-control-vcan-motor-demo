@@ -45,6 +45,11 @@ public:
 private:
   static constexpr std::size_t kMaxFramesPerRead = 64U;
 
+  /// True when the next command for this motor may not be tracked.
+
+  bool ack_window_full(std::size_t index) const;
+
+
   bool send_command(
     std::size_t index, bool enabled, double velocity_rad_s, bool track_ack = true);
   bool send_safe_stop();

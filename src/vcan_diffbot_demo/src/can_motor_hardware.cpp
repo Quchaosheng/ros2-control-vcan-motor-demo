@@ -416,6 +416,13 @@ hardware_interface::return_type CanMotorHardware::write(
   }
 
   for (std::size_t index = 0; index < commands_.size(); ++index) {
+    // A full window means the ACKs for the commands already on the bus have not
+    // come back. That is ACK loss, and read() reports it as an ACK timeout; it
+    // must not be turned into a CAN send error here, or the fault would be
+    // attributed to the wrong subsystem and the timeout message never appears.
+    if (ack_window_full(index)) {
+      continue;
+    }
     if (!send_command(index, true, commands_[index])) {
       commands_.fill(0.0);
       if (stop_reason_ == "none") {
@@ -429,6 +436,12 @@ hardware_interface::return_type CanMotorHardware::write(
     }
   }
   return hardware_interface::return_type::OK;
+}
+
+bool CanMotorHardware::ack_window_full(const std::size_t index) const
+{
+  return index < sequences_.size() &&
+         !health_.can_track(index, static_cast<uint8_t>(sequences_[index] + 1U));
 }
 
 bool CanMotorHardware::send_command(
@@ -445,16 +458,31 @@ bool CanMotorHardware::send_command(
       static_cast<double>(std::numeric_limits<int16_t>::min()),
       static_cast<double>(std::numeric_limits<int16_t>::max()));
     const int32_t velocity_mrad_s = static_cast<int32_t>(std::llround(clamped_velocity_mrad_s));
+    // The window is checked before the frame goes out. Sending first and
+    // refusing to track afterwards would put a command on the bus that no ACK
+    // can be matched to, which is the ambiguity the bound exists to prevent.
+    const uint8_t sequence = static_cast<uint8_t>(sequences_[index] + 1U);
+    if (track_ack && !health_.can_track(index, sequence)) {
+      RCLCPP_ERROR(
+        logger_,
+        "Refusing to send to motor node %u: %zu commands already in flight, "
+        "sequence %u would be ambiguous",
+        node_ids_[index], health_.pending_ack_count(index),
+        static_cast<unsigned>(sequence));
+      return false;
+    }
+    sequences_[index] = sequence;
+
     const auto data = protocol::encode_command(
-      ++sequences_[index], enabled, velocity_mrad_s, command_watchdog_ms_);
+      sequence, enabled, velocity_mrad_s, command_watchdog_ms_);
     const drivers::socketcan::CanId can_id(
       protocol::command_id(node_ids_[index]), 0U,
       drivers::socketcan::FrameType::DATA, drivers::socketcan::StandardFrame);
     sender_->send(data, can_id, kSendTimeout);
     if (track_ack) {
-      health_.command_sent(index, sequences_[index], std::chrono::steady_clock::now());
+      health_.command_sent(index, sequence, std::chrono::steady_clock::now());
     } else {
-      health_.safe_stop_sent(index, sequences_[index]);
+      health_.safe_stop_sent(index, sequence);
     }
     return true;
   } catch (const std::exception & error) {
