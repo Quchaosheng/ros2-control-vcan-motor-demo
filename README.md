@@ -207,6 +207,22 @@ The hardware tracks commands until matching ACKs arrive. A rejected, unexpected,
 faults the hardware and sends disabled zero commands to both motors. Feedback loss on either motor
 uses the same safe-stop path.
 
+### Outstanding-command window
+
+At most `HardwareHealth::kMaxOutstandingAcks` (8) commands per motor may be in flight. The window is
+a fixed-capacity ring allocated with the object, so the write path does not allocate; a test counts
+allocations across a steady-state run and a full-window burst and asserts zero.
+
+The bound is not arbitrary. The sequence number is one byte, so an unbounded queue would eventually
+hold two entries with the same sequence and an incoming ACK could not be attributed to either. The
+write path checks the window *before* the frame goes to the bus: a full window, or a sequence that is
+already in flight, refuses the send rather than sending a frame whose ACK cannot be matched.
+
+What this does not buy: **zero allocation is not a real-time guarantee.** `send_command()` still
+blocks on the SocketCAN write for up to `kSendTimeout`, the receive path waits for the driver, and the
+`std::chrono::steady_clock::now()` reads are not free. The window bounds memory and makes ACK
+attribution unambiguous; it does not bound the time any of those calls takes.
+
 SocketCAN warning frames are reported in `/diagnostics` and do not stop the stack. BUS-OFF and
 TX-timeout frames are fatal: the hardware clears commands, sends its one safe-stop attempt, latches
 the fault, and returns an error until the hardware is reactivated.

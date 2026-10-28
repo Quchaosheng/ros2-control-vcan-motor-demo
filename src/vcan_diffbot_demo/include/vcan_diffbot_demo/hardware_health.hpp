@@ -5,7 +5,6 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <deque>
 #include <optional>
 
 namespace vcan_diffbot_demo
@@ -26,6 +25,31 @@ public:
   using Clock = std::chrono::steady_clock;
   using TimePoint = Clock::time_point;
 
+  /** How many commands may be in flight per motor.
+   *
+   * The sequence number is 8 bits, so an unbounded queue would eventually hold
+   * two entries with the same sequence and an ACK could not be attributed to
+   * either. Eight is far below that and is a number the write path can be held
+   * to: the control loop never has more than one command outstanding per motor
+   * unless ACKs are being lost, and a lost ACK is a fault, not a backlog.
+   */
+  static constexpr std::size_t kMaxOutstandingAcks = 8U;
+
+  /** Whether a command with this sequence may be tracked at all.
+   *
+   * False when the window is full, and false when the sequence is already in
+   * flight: reusing one inside the window makes the next ACK ambiguous, so the
+   * caller must not send it rather than discover that afterwards.
+   */
+  bool can_track(const std::size_t index, const uint8_t sequence) const
+  {
+    if (index >= pending_acks_.size()) {
+      return false;
+    }
+    const auto & window = pending_acks_[index];
+    return window.size() < kMaxOutstandingAcks && !window.contains(sequence);
+  }
+
   void reset(const TimePoint now)
   {
     last_feedback_.fill(now);
@@ -38,11 +62,19 @@ public:
     stop_sent_ = false;
   }
 
-  void command_sent(const std::size_t index, const uint8_t sequence, const TimePoint now)
+  /** Reserve a slot for a command that has just been sent.
+   *
+   * Returns false when it was refused. The caller is expected to have asked
+   * can_track() before sending; this repeats the check so a caller that did not
+   * cannot grow the window past its bound.
+   */
+  bool command_sent(const std::size_t index, const uint8_t sequence, const TimePoint now)
   {
-    if (index < pending_acks_.size()) {
-      pending_acks_[index].push_back({sequence, now});
+    if (!can_track(index, sequence)) {
+      return false;
     }
+    pending_acks_[index].push({sequence, now});
+    return true;
   }
 
   void safe_stop_sent(const std::size_t index, const uint8_t sequence)
@@ -62,7 +94,7 @@ public:
 
     auto & pending = pending_acks_[index];
     if (!pending.empty() && pending.front().sequence == sequence) {
-      pending.pop_front();
+      pending.pop();
       if (result == 0U) {
         last_ack_status_[index] = AckStatus::ACCEPTED;
         return AckStatus::ACCEPTED;
@@ -168,7 +200,55 @@ private:
     TimePoint sent_at;
   };
 
-  std::array<std::deque<PendingAck>, 2> pending_acks_;
+  /** Fixed-capacity ring of in-flight commands.
+   *
+   * A ring rather than a deque because command_sent() runs in the write path,
+   * and a deque allocates on push. Capacity is a compile-time constant, so
+   * push and pop are index arithmetic on storage that already exists.
+   */
+  class AckWindow
+  {
+public:
+    void clear()
+    {
+      head_ = 0;
+      size_ = 0;
+    }
+
+    [[nodiscard]] bool empty() const {return size_ == 0U;}
+    [[nodiscard]] std::size_t size() const {return size_;}
+
+    [[nodiscard]] const PendingAck & front() const {return slots_[head_];}
+
+    [[nodiscard]] bool contains(const uint8_t sequence) const
+    {
+      for (std::size_t offset = 0; offset < size_; ++offset) {
+        if (slots_[(head_ + offset) % kMaxOutstandingAcks].sequence == sequence) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    void push(const PendingAck & pending)
+    {
+      slots_[(head_ + size_) % kMaxOutstandingAcks] = pending;
+      ++size_;
+    }
+
+    void pop()
+    {
+      head_ = (head_ + 1U) % kMaxOutstandingAcks;
+      --size_;
+    }
+
+private:
+    std::array<PendingAck, kMaxOutstandingAcks> slots_{};
+    std::size_t head_{0};
+    std::size_t size_{0};
+  };
+
+  std::array<AckWindow, 2> pending_acks_;
   std::array<std::optional<uint8_t>, 2> ignored_ack_sequences_{};
   std::array<AckStatus, 2> last_ack_status_{};
   std::array<TimePoint, 2> last_feedback_{};
